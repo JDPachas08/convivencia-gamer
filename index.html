@@ -17,7 +17,7 @@
   </div>
 
   <main class="container">
-    <!-- Login -->
+    <!-- Login / Apodo -->
     <section id="loginScreen" class="card center">
       <h2>👋 Bienvenido</h2>
       <p>Ingresa tu apodo para empezar</p>
@@ -28,23 +28,23 @@
       <small class="muted">Tu apodo se usará para ranking y logros.</small>
     </section>
 
-    <!-- Menú -->
+    <!-- Menu -->
     <section id="menuScreen" class="card games-menu" style="display:none;">
       <h2>Elige un juego</h2>
       <div class="grid">
         <div class="game-card" onclick="startGame('trivia')">
           <h3>🧠 Trivia de Convivencia</h3>
-          <p>Responde preguntas de respeto y trabajo en equipo.</p>
+          <p>Preguntas difíciles sobre respeto y convivencia.</p>
           <button class="btn">Jugar</button>
         </div>
         <div class="game-card" onclick="startGame('who')">
           <h3>🎭 Quién dijo eso?</h3>
-          <p>Adivina quién dijo la frase.</p>
+          <p>Adivina quién dijo la frase. ¡Rápido = más puntos!</p>
           <button class="btn">Jugar</button>
         </div>
         <div class="game-card" onclick="startGame('hackball')">
           <h3>⚽ Hackball Escolar</h3>
-          <p>Dos jugadores locales. Marca 3 goles antes de 2 minutos.</p>
+          <p>Juega en pareja y marca goles en 2 minutos.</p>
           <button class="btn">Jugar</button>
         </div>
         <div class="game-card" onclick="startGame('react')">
@@ -64,7 +64,7 @@
       </div>
     </section>
 
-    <!-- Zona de juegos -->
+    <!-- Game Area -->
     <section id="gameArea" style="display:none;">
       <div class="game-header">
         <button class="btn ghost" onclick="goHome()">← Volver</button>
@@ -77,42 +77,44 @@
 
       <!-- Trivia -->
       <div id="triviaScreen" class="card screen" style="display:none;">
-        <h2 id="triviaTitle">Trivia de Convivencia</h2>
+        <h2>🧠 Trivia de Convivencia</h2>
         <div id="triviaContent"></div>
       </div>
 
-      <!-- Who -->
+      <!-- Quién dijo eso -->
       <div id="whoScreen" class="card screen" style="display:none;">
-        <h2>Quién dijo eso?</h2>
+        <h2>🎭 Quién dijo eso?</h2>
         <div id="whoPhrase" class="phrase"></div>
         <div id="whoOptions" class="options"></div>
       </div>
 
-      <!-- Hackball -->
+      <!-- Hackball Escolar -->
       <div id="hackballScreen" class="card screen" style="display:none;">
         <h2>⚽ Hackball Escolar</h2>
-        <canvas id="hackballCanvas" width="600" height="400" style="background:white; border:2px solid black; display:block; margin:auto;"></canvas>
-        <div id="hackballStatus" class="muted small mt center"></div>
+        <canvas id="hackballCanvas" width="600" height="400" style="background:#fff;border:3px solid #000;border-radius:10px;"></canvas>
+        <div id="hackballScore" class="mt"></div>
+        <div id="hackballTimer" class="muted small mt"></div>
       </div>
 
-      <!-- Reactions -->
+      <!-- Batalla de Reacciones -->
       <div id="reactScreen" class="card screen" style="display:none;">
         <h2>⚡ Batalla de Reacciones</h2>
-        <div id="reactInfo" class="muted small">Instrucción: presiona lo correcto lo más rápido posible.</div>
-        <div id="reactGrid" class="react-grid" style="min-height:200px;"></div>
+        <div id="reactInfo" class="muted small">Instrucción: presiona la opción correcta lo más rápido que puedas. ¡Tienes tiempo limitado!</div>
+        <div id="reactTimer" class="muted small mt"></div>
+        <div id="reactGrid" class="react-grid"></div>
         <div id="reactBest" class="muted small mt"></div>
       </div>
     </section>
 
-    <!-- Medallas -->
+    <!-- Medals -->
     <section id="medalsPanel" class="card" style="display:none; margin-top:16px;">
       <h3>🏅 Mis Medallas</h3>
       <ul id="medalsList"></ul>
       <div class="muted small mt">
         <strong>Significado:</strong>
         <ul>
-          <li>🥇 Campeón Global — Score ≥ 5000</li>
-          <li>🥈 Jugador Constante — Score ≥ 300</li>
+          <li>🥇 Campeón Global — Score total ≥ 5000</li>
+          <li>🥈 Jugador Constante — Score total ≥ 300</li>
           <li>🧠 Maestro del Respeto — Trivia difícil completada</li>
           <li>🎭 Conozco a todos — Aciertos en "Quién dijo eso"</li>
           <li>⚽ Equipo Legendario — Ganar en Hackball Escolar</li>
@@ -134,4 +136,5 @@
   <script src="script.js"></script>
 </body>
 </html>
+
 
