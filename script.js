@@ -142,6 +142,8 @@ function goHome(){
   reactTimeLeft = 30;
   clearInterval(reactInterval);
   clearInterval(globalTimerInterval);
+  if(catchSpawnInterval) clearInterval(catchSpawnInterval);
+  if(catchTimerInterval) clearInterval(catchTimerInterval);
   document.getElementById('scoreDisplay').textContent = 'Puntos: 0';
   document.getElementById('livesDisplay').textContent = '';
   document.getElementById('timeDisplay').textContent = '';
@@ -183,7 +185,6 @@ function startGlobalTimer(duration = 30){
     document.getElementById('timeDisplay').textContent = `⏱ ${globalTime}s`;
     if(globalTime <= 0){
       clearInterval(globalTimerInterval);
-      alert('⏰ Se terminó el tiempo!');
       endGame(currentGame);
     }
   },1000);
@@ -314,66 +315,56 @@ function loadWhoQuestion(){
   });
 }
 
-// ---------- JUEGO 3: CAZA OBJETOS (LOCAL, 30s) ----------
-let catchObjectsInterval = null;
-let catchObjectsSpawnInterval = null;
+// ---------- JUEGO 3: CAZA OBJETOS ----------
+const catchObjectsCategories = [
+  { name: "⚽ Deportes", target: "⚽", distractors: ["🍎","🐶","🎮","🌟"] },
+  { name: "🍎 Comida", target: "🍎", distractors: ["⚽","🐱","🎯","🔥"] },
+  { name: "🐶 Animales", target: "🐶", distractors: ["🍌","⚽","🎮","🌟"] },
+  { name: "🎮 Juegos", target: "🎮", distractors: ["🍎","🐱","⚽","🌟"] }
+];
+
+let catchSpawnInterval = null;
+let catchTimerInterval = null;
 let catchObjectsTime = 30;
 let catchObjectsScore = 0;
 let catchObjectsLives = 3;
 let currentCategory = null;
-let catchObjectsEnded = false;
 
 function initCoop(){
   const screen = document.getElementById('coopScreen');
   screen.style.display='block';
-  screen.innerHTML = ''; // limpiar contenido previo
+  screen.innerHTML = ''; // clear previous content
+
+  currentCategory = pickRandom(catchObjectsCategories,1)[0];
+
+  screen.innerHTML = `<h2 class="center">Caza Objetos 🏹</h2>
+    <p class="muted small">Categoría: <strong>${currentCategory.name}</strong></p>
+    <div id="catchArea" style="position:relative;width:100%;height:300px;border:1px solid #ccc;background:#f9f9f9;overflow:hidden;border-radius:12px;margin-top:12px;"></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
+      <div>Puntos: <span id="catchScore">0</span></div>
+      <div>Vidas: <span id="catchLives">3</span></div>
+      <div>Tiempo: <span id="catchTime">30s</span></div>
+      <button id="catchEndEarly" class="btn ghost">Terminar juego</button>
+    </div>
+  `;
+  document.getElementById('catchEndEarly').onclick = endCatchObjects;
 
   catchObjectsScore = 0;
   catchObjectsLives = 3;
   catchObjectsTime = 30;
-  catchObjectsEnded = false;
 
-  // header
-  const header = document.createElement('div');
-  header.className = 'center';
-  screen.appendChild(header);
-
-  // elegir categoría aleatoria
-  currentCategory = pickRandom(catchObjectsCategories,1)[0];
-  header.innerHTML = `<h2>Caza Objetos 🏹</h2>
-    <p class="muted small">Categoría: <strong>${currentCategory.name}</strong></p>
-  `;
-
-  // área de juego
-  const areaDiv = document.createElement('div');
-  areaDiv.id = 'catchArea';
-  areaDiv.style.cssText = 'position:relative;width:100%;height:300px;border:1px solid #ccc;background:#f9f9f9;overflow:hidden;border-radius:12px;margin-top:12px;';
-  screen.appendChild(areaDiv);
-
-  // info & controles
-  const infoDiv = document.createElement('div');
-  infoDiv.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:10px;';
-  infoDiv.innerHTML = `
-    <div>Puntos: <span id="catchScore">${catchObjectsScore}</span></div>
-    <div>Vidas: <span id="catchLives">${catchObjectsLives}</span></div>
-    <div>Tiempo: <span id="catchTime">${catchObjectsTime}s</span></div>
-    <button id="catchEndEarly" class="btn ghost">Terminar juego</button>
-  `;
-  screen.appendChild(infoDiv);
-
-  document.getElementById('catchEndEarly').onclick = endCatchObjects;
-
-  spawnObjectLoop();
   startCatchTimer();
+  spawnObjectLoop();
 }
 
 function startCatchTimer(){
-  clearInterval(catchObjectsInterval);
-  catchObjectsInterval = setInterval(()=>{
+  clearInterval(catchTimerInterval);
+  catchTimerInterval = setInterval(()=>{
     catchObjectsTime--;
     document.getElementById('catchTime').textContent = `${catchObjectsTime}s`;
     if(catchObjectsTime <= 0){
-      endCatchObjects();
+      clearInterval(catchTimerInterval);
+      finalizeCatchObjects();
     }
   },1000);
 }
@@ -381,8 +372,9 @@ function startCatchTimer(){
 function spawnObjectLoop(){
   const area = document.getElementById('catchArea');
   if(!area) return;
-  clearInterval(catchObjectsSpawnInterval);
-  catchObjectsSpawnInterval = setInterval(()=>{
+
+  clearInterval(catchSpawnInterval);
+  catchSpawnInterval = setInterval(()=>{
     const isTarget = Math.random() < 0.5;
     const emoji = isTarget ? currentCategory.target : pickRandom(currentCategory.distractors,1)[0];
     const obj = document.createElement('div');
@@ -393,9 +385,7 @@ function spawnObjectLoop(){
     obj.style.top = Math.random()*250 + 'px';
     obj.style.left = Math.random()*90 + '%';
     obj.style.transition = 'transform 0.5s linear';
-
     obj.onclick = ()=>{
-      if(catchObjectsEnded) return;
       if(emoji === currentCategory.target){
         catchObjectsScore += 10;
         sounds.ding.play();
@@ -409,7 +399,6 @@ function spawnObjectLoop(){
       document.getElementById('catchScore').textContent = catchObjectsScore;
       obj.remove();
     };
-
     area.appendChild(obj);
     setTimeout(()=>{ obj.style.transform = 'translateY(260px)'; },10);
     setTimeout(()=>{ if(obj.parentElement) obj.remove(); },2500);
@@ -417,15 +406,14 @@ function spawnObjectLoop(){
 }
 
 function endCatchObjects(){
-  if(catchObjectsEnded) return;
-  catchObjectsEnded = true;
-  clearInterval(catchObjectsInterval);
-  clearInterval(catchObjectsSpawnInterval);
+  clearInterval(catchSpawnInterval);
+  clearInterval(catchTimerInterval);
   finalizeCatchObjects();
 }
 
 function finalizeCatchObjects(){
-  if(catchObjectsEnded === false) catchObjectsEnded = true;
+  clearInterval(catchSpawnInterval);
+  clearInterval(catchTimerInterval);
   alert(`Juego terminado! Obtuviste ${catchObjectsScore} puntos.`);
   saveScoreToDB('coop', catchObjectsScore);
   if(catchObjectsScore>=200) awardMedal('🎯 Maestro Cazador');
@@ -433,23 +421,7 @@ function finalizeCatchObjects(){
   goHome();
 }
 
-// ---------- END GAME ----------
-let gameEnded = false;
-function endGame(game){
-  if(gameEnded) return;
-  gameEnded = true;
-  clearInterval(globalTimerInterval);
-  clearInterval(reactInterval);
-  alert(`🎮 Juego terminado! Obtuviste ${score} puntos`);
-  saveScoreToDB(game, score);
-  if(score>=5000) awardMedal('🏆 Leyenda');
-  else if(score>=500) awardMedal('🥇 Prodigio');
-  goHome();
-}
-
-
-
-// ---------- JUEGO 4: REACT (GOLPE RÁPIDO CON OBJETIVO VISIBLE) ----------
+// ---------- JUEGO 4: REACT ----------
 function initReact(){
   document.getElementById('reactScreen').style.display='block';
   reactGrid = document.getElementById('reactGrid');
@@ -504,6 +476,8 @@ function pickRandom(arr,n){ return shuffle(arr).slice(0,n); }
 function endGame(game){
   clearInterval(globalTimerInterval);
   clearInterval(reactInterval);
+  if(catchSpawnInterval) clearInterval(catchSpawnInterval);
+  if(catchTimerInterval) clearInterval(catchTimerInterval);
   alert(`🎮 Juego terminado! Obtuviste ${score} puntos`);
   saveScoreToDB(game, score);
   if(score>=5000) awardMedal('🏆 Leyenda');
