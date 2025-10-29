@@ -3,134 +3,110 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Convivencia Gamer</title>
-  <link rel="stylesheet" href="style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
+  <title>Juegos de Convivencia</title>
+  <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+  <!-- TOPBAR -->
   <div class="topbar">
-    <div class="brand">🎮 Convivencia Gamer</div>
-    <div id="playerInfo" class="player-info" style="display:none;">
-      <span id="playerNameBadge"></span>
-      <div id="medalsBadge"></div>
+    <div class="brand">Juegos Convivencia</div>
+    <button class="btn ghost" onclick="toggleMedals()">🏅 Medallas</button>
+  </div>
+
+  <!-- PLAYER INFO -->
+  <div id="playerInfo" class="player-info" style="display:none">
+    <span id="playerNameBadge"></span>
+    <span id="medalsBadge"></span>
+  </div>
+
+  <!-- MEDALS PANEL -->
+  <div id="medalsPanel" class="card" style="display:none">
+    <h3 class="center">Tus Medallas</h3>
+    <ul id="medalsList"></ul>
+    <button class="btn ghost" onclick="goHome()">Cerrar</button>
+  </div>
+
+  <!-- LOGIN SCREEN -->
+  <div id="loginScreen" class="container screen">
+    <h2 class="center">Ingresa tu apodo</h2>
+    <input type="text" id="nickname" placeholder="Tu apodo">
+    <div class="row">
+      <button class="btn primary" id="enterBtn">Entrar</button>
     </div>
   </div>
 
-  <main class="container">
-    <!-- Login -->
-    <section id="loginScreen" class="card center">
-      <h2>👋 Bienvenido</h2>
-      <p>Ingresa tu apodo para empezar</p>
-      <input id="nickname" placeholder="Ej: Andrea23" />
-      <div class="row">
-        <button class="btn primary" id="enterBtn">Entrar</button>
+  <!-- MENU SCREEN -->
+  <div id="menuScreen" class="container screen" style="display:none">
+    <h2 class="center">Selecciona un juego</h2>
+    <div class="grid">
+      <div class="game-card">
+        <h3>Trivia 🤔</h3>
+        <button class="btn primary" onclick="startGame('trivia')">Jugar</button>
       </div>
-      <small class="muted">Tu apodo se usará para ranking y logros.</small>
-    </section>
-
-    <!-- Menu -->
-    <section id="menuScreen" class="card games-menu" style="display:none;">
-      <h2>Elige un juego</h2>
-      <div class="grid">
-        <div class="game-card" onclick="startGame('trivia')">
-          <h3>🧠 Trivia de Convivencia</h3>
-          <p>Niveles: fácil, medio, difícil. 3 vidas por partida.</p>
-          <button class="btn">Jugar</button>
-        </div>
-        <div class="game-card" onclick="startGame('who')">
-          <h3>🎭 Quién dijo eso?</h3>
-          <p>Adivina quién dijo la frase. ¡Rápido = más puntos!</p>
-          <button class="btn">Jugar</button>
-        </div>
-        <div class="game-card" onclick="startGame('coop')">
-          <h3>⚽ Fútbol Cooperativo</h3>
-          <p>Coopera con tu equipo para hacer goles y sumar puntos.</p>
-          <button class="btn">Jugar</button>
-        </div>
-        <div class="game-card" onclick="startGame('react')">
-          <h3>⚡ Duelos de Reflejos</h3>
-          <p>Compite contra tus amigos en rapidez y precisión.</p>
-          <button class="btn">Jugar</button>
-        </div>
+      <div class="game-card">
+        <h3>Quién Dijo Eso? 🗣️</h3>
+        <button class="btn primary" onclick="startGame('who')">Jugar</button>
       </div>
-
-      <div class="row mt">
-        <button class="btn ghost" onclick="toggleMedals()">Ver Medallas</button>
+      <div class="game-card">
+        <h3>Fútbol Cooperativo ⚽</h3>
+        <button class="btn primary" onclick="startGame('coop')">Jugar</button>
       </div>
-
-      <div class="leaderboard card mt">
-        <h3>🏆 Ranking Global</h3>
-        <ul id="rankingList"></ul>
+      <div class="game-card">
+        <h3>Golpe Rápido ⚡</h3>
+        <button class="btn primary" onclick="startGame('react')">Jugar</button>
       </div>
-    </section>
+    </div>
+  </div>
 
-    <!-- Game Area -->
-    <section id="gameArea" style="display:none;">
-      <div class="game-header">
-        <button class="btn ghost" onclick="goHome()">← Volver</button>
-        <div class="game-status">
-          <span id="scoreDisplay">Puntos: 0</span>
-          <span id="livesDisplay"></span>
-          <span id="timeDisplay" style="margin-left:12px;"></span>
-        </div>
-      </div>
+  <!-- GAME AREA -->
+  <div id="gameArea" class="container" style="display:none">
 
-      <!-- Trivia -->
-      <div id="triviaScreen" class="card screen" style="display:none;">
-        <h2 id="triviaTitle">Trivia</h2>
-        <div id="triviaContent"></div>
-      </div>
+    <!-- SCORE / LIVES / TIMER -->
+    <div class="game-header">
+      <div id="scoreDisplay">Puntos: 0</div>
+      <div id="livesDisplay"></div>
+      <div id="timeDisplay">⏱ 30s</div>
+    </div>
 
-      <!-- Who -->
-      <div id="whoScreen" class="card screen" style="display:none;">
-        <h2>Quién dijo eso?</h2>
-        <div id="whoPhrase" class="phrase"></div>
-        <div id="whoOptions" class="options"></div>
-      </div>
+    <!-- TRIVIA -->
+    <div id="triviaScreen" class="screen"></div>
 
-      <!-- Fútbol Cooperativo -->
-      <div id="coopScreen" class="card screen" style="display:none;">
-        <h2>Fútbol Cooperativo</h2>
-        <div id="coopMission" class="phrase"></div>
-        <div class="row mt">
-          <button class="btn" id="coopComplete">PASO / DISPARO</button>
-          <button class="btn ghost" id="coopNew">Nueva acción (host)</button>
-        </div>
-        <div id="coopStatus" class="muted small mt"></div>
-      </div>
+    <!-- WHO -->
+    <div id="whoScreen" class="screen">
+      <div id="whoPhrase" class="phrase"></div>
+      <div id="whoOptions" class="options"></div>
+    </div>
 
-      <!-- Duelos de Reflejos -->
-      <div id="reactScreen" class="card screen" style="display:none;">
-        <h2>Duelos de Reflejos</h2>
-        <div id="reactInfo" class="muted small">Selecciona la opción correcta lo más rápido posible.</div>
-        <div id="reactTimer" class="muted small mt"></div>
-        <div id="reactGrid" class="react-grid"></div>
-        <div id="reactBest" class="muted small mt"></div>
-      </div>
-    </section>
+    <!-- COOP -->
+    <div id="coopScreen" class="screen">
+      <p id="coopScore">Goles: 0</p>
+      <button id="coopGoalBtn" class="btn primary">¡Anotar Gol!</button>
+    </div>
 
-    <!-- Medals panel -->
-    <section id="medalsPanel" class="card" style="display:none; margin-top:16px;">
-      <h3>🏅 Mis Medallas</h3>
-      <ul id="medalsList"></ul>
-      <div class="muted small mt">
-        <strong>Significado:</strong>
-        <ul>
-          <li>🥇 Campeón Global — Score total ≥ 5000</li>
-          <li>🥈 Jugador Constante — Score total ≥ 500</li>
-          <li>🧠 Maestro del Respeto — Trivia difícil completada</li>
-          <li>🎭 Conozco a todos — Aciertos en "Quién dijo eso"</li>
-          <li>🤝 Equipo Legendario — Completar misiones cooperativas</li>
-          <li>⚡ Reflejos Relámpago — Racha de reacciones</li>
-        </ul>
-      </div>
-    </section>
-  </main>
+    <!-- REACT -->
+    <div id="reactScreen" class="screen">
+      <p id="reactTarget"></p>
+      <div id="reactGrid" class="react-grid"></div>
+    </div>
 
-  <footer class="footer">
-    <small>Diseño: Rojo / Azul Marino / Dorado • Medallas jugonas y logros</small>
-  </footer>
+    <!-- BACK TO MENU -->
+    <div class="row mt">
+      <button class="btn ghost" onclick="goHome()">Volver al Menú</button>
+    </div>
+  </div>
 
+  <!-- RANKING -->
+  <div class="container card mt leaderboard">
+    <h3 class="center">Ranking Global</h3>
+    <ul id="rankingList"></ul>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <p>© 2025 Juegos Convivencia</p>
+  </div>
+
+  <!-- SCRIPTS -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
   <script src="script.js"></script>
