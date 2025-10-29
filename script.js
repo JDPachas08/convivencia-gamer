@@ -1,8 +1,4 @@
-// ===============================
-// script.js - Convivencia Gamer
-// ===============================
-
-// ---------- CONFIGURACIÓN FIREBASE (versión clásica) ----------
+// ---------- CONFIGURACIÓN FIREBASE ----------
 const firebaseConfig = {
   apiKey: "AIzaSyAr2Ngp82wyZiiKMe8YCv2CpVbmxIfKPlM",
   authDomain: "juegos-convivencia.firebaseapp.com",
@@ -12,33 +8,45 @@ const firebaseConfig = {
   messagingSenderId: "1043193368759",
   appId: "1:1043193368759:web:34dcf752836b513c66fd32"
 };
+// ---------------------------------------------------------
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
-// ---------- CONSTANTES ----------
-const DEFAULT_GAME_TIME = 45; // segundos para trivia, who, react
-const HACKBALL_GAME_TIME = 120; // segundos para Hackball
-const HACKBALL_GOALS_TO_WIN = 3;
-const ACHIEVEMENT_THRESHOLD_SMALL = 300; // was 50 -> now 300
-const ACHIEVEMENT_THRESHOLD_CHAMP = 5000; // champion legendary threshold
+// ---------- CONSTANTES GLOBALES ----------
+const GAME_DURATION = 45; // segundos por juego (solicitado)
+const CATCH_SPAWN_INTERVAL = 800; // ms entre objetos que caen (catch game)
+const CATCH_FALL_TIME = 2200; // ms que tarda en caer un objeto (visual)
+const CATCH_THRESHOLD_TOTAL = 10; // para considerarlo "completado" como equipo (opcional)
 
-// ---------- DATOS DE ESTUDIANTES (tus 6) ----------
+// ---------- DATOS DE ESTUDIANTES (sólo las 6 que diste, con más frases) ----------
 const students = [
-  { name: "Andrea", hobby: "Escuchar música", extra: "hacer peinados exóticos", desc: "Baja, pelo lacio y negro" },
-  { name: "Loana", hobby: "Dibujar", extra: "garabatear en cuadernos", desc: "Alta, pelo castaño y rizado" },
-  { name: "Emmanuel", hobby: "Tocar el ukelele", extra: "componer canciones", desc: "Usaba lentes, pelo negro lacio" },
-  { name: "Nadiencka", hobby: "Jugar Roblox", extra: "hacer bromas", desc: "Tez morena, pelo negro rizado, alta" },
-  { name: "Sneijder", hobby: "Jugar Básquet", extra: "organizar cosas", desc: "Tez blanca, pelo negro ondeado" },
-  { name: "Lucciana", hobby: "Tocar guitarra", extra: "usar lentes rosaditos", desc: "Baja, pelo negro rizado" }
+  { name: "Andrea", traits: { hobby: "escuchar música", extra: "hacer peinados exóticos", desc: "baja, pelo lacio y negro" } },
+  { name: "Loana", traits: { hobby: "dibujar", extra: "garabatear en cuadernos", desc: "alta, pelo castaño y rizado" } },
+  { name: "Emmanuel", traits: { hobby: "tocar el ukelele", extra: "componer canciones", desc: "usa lentes, pelo negro lacio" } },
+  { name: "Nadiencka", traits: { hobby: "jugar Roblox", extra: "siempre hace bromas", desc: "alta, tez morena, pelo negro rizado" } },
+  { name: "Sneijder", traits: { hobby: "jugar básquet", extra: "organizar cosas", desc: "tez blanca, pelo negro ondeado" } },
+  { name: "Lucciana", traits: { hobby: "tocar guitarra", extra: "usar lentes rosaditos", desc: "baja, pelo negro rizado" } }
 ];
 
-// ---------- SONIDOS (asegúrate de tener los archivos en assets/sounds) ----------
+// generar frases variadas para "Quién dijo eso?" a partir de datos
+const frasesBank = [];
+students.forEach(s => {
+  const t = s.traits;
+  frasesBank.push({ frase: `Me encanta ${t.hobby} en mis ratos libres.`, autor: s.name });
+  frasesBank.push({ frase: `A menudo ${t.extra} cuando estoy en la escuela.`, autor: s.name });
+  frasesBank.push({ frase: `Me reconocen por ser ${t.desc}.`, autor: s.name });
+  // una frase adicional que mezcla rasgos:
+  frasesBank.push({ frase: `Mi pasatiempo: ${t.hobby}; además ${t.extra}.`, autor: s.name });
+});
+
+// ---------- SONIDOS ----------
 const sounds = {
   start: new Audio('assets/sounds/start.mp3'),
   ding: new Audio('assets/sounds/ding.mp3'),
   pop: new Audio('assets/sounds/pop.mp3'),
   win: new Audio('assets/sounds/win.mp3'),
   cheer: new Audio('assets/sounds/cheer.mp3'),
+  victoria: new Audio('assets/sounds/win.mp3'),
   error: new Audio('assets/sounds/pop.mp3')
 };
 
@@ -49,13 +57,27 @@ let score = 0;
 let lives = 3;
 let currentGame = null;
 
-// timers
-let gameTimers = {}; // keyed by game type
+// timer general por juego
+let gameTimerInterval = null;
+let gameTimeLeft = GAME_DURATION;
 
-// Reaction game state
-let reactBest = localStorage.getItem('reactBest') ? Number(localStorage.getItem('reactBest')) : null;
+// ---------- REACT GAME STATE ----------
+let reactTimeTotal = GAME_DURATION;
+let reactTimeLeft = reactTimeTotal;
+let reactInterval = null;
+let roundStart = 0;
+let bestReaction = localStorage.getItem('bestReaction') ? Number(localStorage.getItem('bestReaction')) : null;
+let reactRound = 0;
 
-// UI elements (assume exist in index.html as provided)
+// ---------- CATCH (coop online) STATE ----------
+const catchRef = db.ref('catch'); // root node for catch game
+let catchPlayersRef = db.ref('catch/players');
+let localCatchSpawnInterval = null;
+let localCatchAnimations = []; // store timeouts/raf ids for cleanup
+let playerCatchScore = 0;
+let catchActive = false;
+
+// ---------- UI ELEMENTS ----------
 const loginScreen = document.getElementById('loginScreen');
 const menuScreen = document.getElementById('menuScreen');
 const gameArea = document.getElementById('gameArea');
@@ -64,19 +86,27 @@ const rankingList = document.getElementById('rankingList');
 const medalsPanel = document.getElementById('medalsPanel');
 const medalsList = document.getElementById('medalsList');
 
-// ---------- HELPERS ----------
+// helpers
 function sanitizeId(name){ return name.replace(/[^a-z0-9]/gi,'_').toLowerCase(); }
-function shuffle(arr){ return arr.slice().sort(()=>Math.random()-0.5); }
+function shuffle(arr){ return arr.sort(()=>Math.random()-0.5); }
 function pickRandom(arr, n){
-  const copy = arr.slice(); const res = [];
+  const copy = arr.slice();
+  const res = [];
   for(let i=0;i<n && copy.length>0;i++){
-    res.push(copy.splice(Math.floor(Math.random()*copy.length),1)[0]);
+    const idx = Math.floor(Math.random()*copy.length);
+    res.push(copy.splice(idx,1)[0]);
   }
   return res;
 }
 
-// ---------- FIREBASE: jugador, ranking, medallas ----------
-function initPlayerIfNeeded(nick){
+// ----------------- UI / Session -----------------
+document.getElementById('enterBtn').addEventListener('click', () => {
+  const nick = document.getElementById('nickname').value.trim();
+  if(!nick) return alert('Ingresa un apodo');
+  startSession(nick);
+});
+
+function startSession(nick){
   playerName = nick;
   localStorage.setItem('playerName', playerName);
   playerRef = db.ref('players/' + sanitizeId(playerName));
@@ -88,22 +118,165 @@ function initPlayerIfNeeded(nick){
   });
 }
 
+function showMenu(){
+  loginScreen.style.display='none';
+  menuScreen.style.display='block';
+  playerInfo.style.display='flex';
+  document.getElementById('playerNameBadge').textContent = playerName;
+  loadGlobalRanking();
+  listenPlayerUpdates();
+  renderMedalsList();
+}
+
+function listenPlayerUpdates(){
+  if(!playerRef) playerRef = db.ref('players/' + sanitizeId(playerName));
+  playerRef.on('value', snap=>{
+    const val = snap.val();
+    if(!val) return;
+    const medals = val.medals || [];
+    document.getElementById('medalsBadge').innerHTML = medals.map(m => `<span>${m}</span>`).join(' ');
+    renderMedalsList();
+  });
+}
+
+function renderMedalsList(){
+  if(!playerRef) return;
+  playerRef.once('value').then(snap=>{
+    const val = snap.val() || {};
+    const medals = val.medals || [];
+    medalsList.innerHTML = medals.length ? medals.map(m => `<li style="font-size:1.1rem">${m}</li>`).join('') : '<li>No tienes medallas aún. ¡A jugar! 🎮</li>';
+  });
+}
+
+function toggleMedals(){
+  const panel = document.getElementById('medalsPanel');
+  panel.style.display = (panel.style.display === 'none' || panel.style.display === '') ? 'block' : 'none';
+}
+
+function goHome(){
+  stopAllGameActivities();
+  currentGame = null;
+  score = 0;
+  lives = 3;
+  gameTimeLeft = GAME_DURATION;
+  document.getElementById('scoreDisplay').textContent = 'Puntos: 0';
+  document.getElementById('livesDisplay').textContent = '';
+  document.getElementById('timeDisplay').textContent = '';
+  hideAllScreens();
+  gameArea.style.display='none';
+  menuScreen.style.display='block';
+  sounds.pop.play();
+}
+
+function hideAllScreens(){
+  document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
+  document.getElementById('medalsPanel').style.display = 'none';
+  // remove dynamic catch area if exists
+  const area = document.getElementById('catchArea');
+  if(area) area.remove();
+}
+
+function stopAllGameActivities(){
+  // timers and intervals
+  clearInterval(gameTimerInterval);
+  clearInterval(reactInterval);
+  clearInterval(localCatchSpawnInterval);
+  localCatchAnimations.forEach(x => {
+    if(x.raf) cancelAnimationFrame(x.raf);
+    if(x.to) clearTimeout(x.to);
+    if(x.el && x.el.remove) x.el.remove();
+  });
+  localCatchAnimations = [];
+  catchActive = false;
+}
+
+// ----------------- START GAME (plays start sound then init) -----------------
+function startGame(type){
+  if(!playerName) return alert('Ingresa tu apodo primero');
+  currentGame = type;
+  score = 0; lives = 3;
+  gameTimeLeft = GAME_DURATION;
+  document.getElementById('scoreDisplay').textContent = 'Puntos: 0';
+  document.getElementById('livesDisplay').textContent = 'Vidas: ' + lives;
+  document.getElementById('timeDisplay').textContent = `⏱ ${gameTimeLeft}s`;
+  menuScreen.style.display='none';
+  gameArea.style.display='block';
+  hideAllScreens();
+
+  // play start sound and wait until it finishes (or use ended event)
+  const p = sounds.start.play();
+  if(p && typeof p.then === 'function'){
+    // modern browsers return a promise
+    sounds.start.onended = () => {
+      // small delay to ensure UI readiness
+      setTimeout(()=> {
+        beginGameAfterStart(type);
+      }, 150);
+    };
+  } else {
+    // fallback: set a timeout length approx sound duration (1.2s) then start
+    setTimeout(()=> beginGameAfterStart(type), 1200);
+  }
+}
+
+function beginGameAfterStart(type){
+  // start global game timer for GAME_DURATION seconds
+  startGameTimer();
+  switch(type){
+    case 'trivia': initTrivia(); break;
+    case 'who': initWho(); break;
+    case 'coop': initCatch(); break; // replaced with catch (online cooperativo)
+    case 'react': initReact(); break;
+    default: console.warn('Juego desconocido: ', type);
+  }
+}
+
+// ---------- GAME TIMER (common for all games) ----------
+function startGameTimer(){
+  clearInterval(gameTimerInterval);
+  gameTimeLeft = GAME_DURATION;
+  document.getElementById('timeDisplay').textContent = `⏱ ${gameTimeLeft}s`;
+  gameTimerInterval = setInterval(()=>{
+    gameTimeLeft--;
+    document.getElementById('timeDisplay').textContent = `⏱ ${gameTimeLeft}s`;
+    // visual hint near end (optional: add CSS class)
+    if(gameTimeLeft <= 10){
+      // could change color via classList (not included here)
+    }
+    if(gameTimeLeft <= 0){
+      clearInterval(gameTimerInterval);
+      // end current game
+      alert('⏰ ¡Se acabó el tiempo!');
+      endGame(currentGame);
+    }
+  }, 1000);
+}
+
+// ---------- RANKING ----------
 function saveScoreToDB(gameType, pts){
-  if(!playerName) return;
   const id = sanitizeId(playerName);
-  db.ref(`scores/${gameType}/${id}`).set({ name: playerName, score: pts, ts: Date.now() });
-  // update overall player score
-  db.ref(`players/${id}/score`).transaction(old => (old || 0) + pts);
+  const playerScoreRef = db.ref(`scores/${gameType}/${id}`);
+  playerScoreRef.set({ name: playerName, score: pts, ts: Date.now() });
+  // Update overall player score
+  playerRef.child('score').transaction(old => (old || 0) + pts);
 }
 
 function loadGlobalRanking(){
   db.ref('players').orderByChild('score').limitToLast(20).on('value', snap=>{
     const data = snap.val() || {};
-    const arr = Object.values(data).sort((a,b)=> (b.score||0) - (a.score||0));
+    const arr = Object.values(data).sort((a,b)=>b.score - a.score);
     rankingList.innerHTML = arr.map((p,i)=>`<li>${i+1}. ${p.name} — ${p.score || 0} pts</li>`).join('');
   });
 }
 
+// ---------- MEDALS ----------
+function awardMedalToPlayerId(playerId, name){
+  db.ref(`players/${playerId}/medals`).transaction(old=>{
+    old = old || [];
+    if(!old.includes(name)) old.push(name);
+    return old;
+  });
+}
 function awardMedal(name){
   if(!playerRef) return;
   playerRef.child('medals').transaction(old=>{
@@ -112,7 +285,6 @@ function awardMedal(name){
     return old;
   });
 }
-
 function addAchievement(name){
   if(!playerRef) return;
   playerRef.child('achievements').transaction(old=>{
@@ -122,495 +294,354 @@ function addAchievement(name){
   });
 }
 
-function renderMedalsList(){
-  if(!playerRef) return;
-  playerRef.once('value').then(snap=>{
-    const val = snap.val() || {};
-    const medals = val.medals || [];
-    medalsList.innerHTML = medals.length ? medals.map(m=>`<li>${m}</li>`).join('') : '<li>No tienes medallas aún. ¡A jugar!</li>';
-  });
-}
-
-// ---------- UI: inicio, login, menú ----------
-document.getElementById('enterBtn').addEventListener('click', ()=>{
-  const nick = document.getElementById('nickname').value.trim();
-  if(!nick) return alert('Ingresa un apodo');
-  initPlayerIfNeeded(nick);
-});
-
-function showMenu(){
-  loginScreen.style.display = 'none';
-  menuScreen.style.display = 'block';
-  playerInfo.style.display = 'flex';
-  document.getElementById('playerNameBadge').textContent = playerName;
-  loadGlobalRanking();
-  renderMedalsList();
-  // listen for updates to medals
-  if(!playerRef) playerRef = db.ref('players/' + sanitizeId(playerName));
-  playerRef.on('value', snap=>{
-    const val = snap.val() || {};
-    const medals = val.medals || [];
-    document.getElementById('medalsBadge').innerHTML = medals.map(m=>`<span>${m}</span>`).join(' ');
-    renderMedalsList();
-  });
-}
-
-function goHome(){
-  // stop timers
-  Object.keys(gameTimers).forEach(k => {
-    clearInterval(gameTimers[k]);
-  });
-  gameTimers = {};
-  // stop any game-specific activities
-  stopHackball();
-  stopReact();
-  // reset UI
-  document.getElementById('scoreDisplay').textContent = 'Puntos: 0';
-  document.getElementById('livesDisplay').textContent = '';
-  document.getElementById('timeDisplay').textContent = '';
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  menuScreen.style.display = 'block';
-  gameArea.style.display = 'none';
-  sounds.pop.play();
-}
-
-// ---------- START GAME (play start sound, then begin) ----------
-function startGame(type){
-  if(!playerName) return alert('Ingresa tu apodo primero');
-  currentGame = type;
-  score = 0; lives = 3;
-  document.getElementById('scoreDisplay').textContent = 'Puntos: 0';
-  document.getElementById('livesDisplay').textContent = `Vidas: ${lives}`;
-  // show area
-  menuScreen.style.display = 'none';
-  gameArea.style.display = 'block';
-  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
-  // play start sound, then begin
-  const playPromise = sounds.start.play();
-  if(playPromise && typeof playPromise.then === 'function'){
-    sounds.start.onended = ()=> { beginGame(type); };
-  } else {
-    // fallback delay
-    setTimeout(()=> beginGame(type), 800);
-  }
-}
-
-function beginGame(type){
-  // set default time display for each game (some override)
-  if(type === 'hackball'){
-    document.getElementById('timeDisplay').textContent = `⏱ ${HACKBALL_GAME_TIME}s`;
-  } else {
-    document.getElementById('timeDisplay').textContent = `⏱ ${DEFAULT_GAME_TIME}s`;
-  }
-  switch(type){
-    case 'trivia': initTrivia(); break;
-    case 'who': initWho(); break; // "Adivina quién soy" - left unchanged
-    case 'hackball': initHackball(); break;
-    case 'react': initReact(); break;
-    default: console.warn('Juego no reconocido', type);
-  }
-}
-
-// ---------- GAME TIMER (generic) ----------
-function startTimer(gameKey, seconds, onTick, onComplete){
-  clearInterval(gameTimers[gameKey]);
-  let t = seconds;
-  if(onTick) onTick(t);
-  gameTimers[gameKey] = setInterval(()=>{
-    t--;
-    if(onTick) onTick(t);
-    if(t <= 0){
-      clearInterval(gameTimers[gameKey]);
-      delete gameTimers[gameKey];
-      if(onComplete) onComplete();
-    }
-  }, 1000);
-}
-function stopTimer(gameKey){
-  if(gameTimers[gameKey]){ clearInterval(gameTimers[gameKey]); delete gameTimers[gameKey]; }
-}
-
-// ---------- TRIVIA (más difícil) ----------
+// ---------- JUEGO 1: TRIVIA ----------
 const triviaQuestions = [
-  // Harder, ethical / situational questions
-  { q:"Un compañero copia tu tarea y la entrega como propia. ¿Qué haces?", opts:["Hablar con el compañero y al docente","Ignorar","Robarle la tarea"], correct:0, lvl:'hard' },
-  { q:"Hay un grupo que excluye a un estudiante nuevo en actividades. Mejor respuesta:", opts:["Invitarlo y presentarlo","Seguir con el grupo","Reírte"], correct:0, lvl:'hard' },
-  { q:"Si ves evidencia de ciberbullying en redes, lo correcto es:", opts:["Informar a un adulto y apoyar a la víctima","Reenviarlo","Borrarlo sin decir nada"], correct:0, lvl:'hard' },
-  { q:"Un compañero se burla de la apariencia de otro: tu intervención sería:", opts:["Hablar con ambos y mediar","Unirte a la burla","Pasar de largo"], correct:0, lvl:'hard' },
-  { q:"Si un equipo pide que ignores a alguien del grupo por competir, tú:", opts:["Promueves inclusión y diálogo","Sigues la orden","Haces lo mismo"], correct:0, lvl:'hard' },
-  // Medium
-  { q:"Cómo resolver un malentendido por un rumor?", opts:["Hablar con la persona involucrada","Difundir el rumor","Ignorar"], correct:0, lvl:'medium' },
-  { q:"Si un compañero aporta ideas distintas, qué haces?", opts:["Escuchar y valorar","Criticar sin escuchar","Interrumpir"], correct:0, lvl:'medium' },
-  // Easier
-  { q:"¿Qué es tolerancia?", opts:["Respetar diferencias","Gritar","Aislar"], correct:0, lvl:'easy' },
-  { q:"Si un compañero comparte material, eso es:", opts:["Generosidad","Egoísmo","Indiferencia"], correct:0, lvl:'easy' },
-  { q:"¿Qué hacemos si vemos una injusticia?"," opts":["Denunciar y apoyar a la víctima","Hacer nada","Celebrar"], correct:0, lvl:'easy' }
+  {q:"¿Qué harías si ves a alguien triste en clase?", opts:["Reírte","Preguntar si está bien","Ignorarlo"], correct:1, lvl:'easy'},
+  {q:"Si un compañero comparte su merienda, eso muestra:", opts:["Egoísmo","Solidaridad","Indiferencia"], correct:1, lvl:'easy'},
+  {q:"Si te equivocas en una tarea y te culpan, lo mejor es:", opts:["Aceptar y disculparse","Culpar a otro","Callarte"], correct:0, lvl:'medium'},
+  {q:"Para resolver conflicto entre amigos lo ideal es:", opts:["Ignorar","Hablar y escuchar","Pelear"], correct:1, lvl:'medium'},
+  {q:"Si hay bullying en el aula, ¿qué debes hacer?", opts:["Unirte","Informar a un docente y apoyar a la víctima","No meterte"], correct:1, lvl:'hard'}
 ];
+let triviaPool = [], triviaIndex=0;
 
-let triviaPool = [], triviaIndex = 0;
 function initTrivia(){
-  document.getElementById('triviaScreen').classList.add('active');
+  document.getElementById('triviaScreen').style.display='block';
   triviaPool = shuffle(triviaQuestions);
   triviaIndex = 0;
-  score = 0; lives = 3;
   showTriviaQuestion();
-  startTimer('trivia', DEFAULT_GAME_TIME, (t)=>{ document.getElementById('timeDisplay').textContent = `⏱ ${t}s`; }, ()=> {
-    alert('⏰ Tiempo terminado en Trivia');
-    endGame('trivia');
-  });
 }
+
 function showTriviaQuestion(){
-  if(triviaIndex >= triviaPool.length){ endGame('trivia'); return; }
+  if(triviaIndex >= triviaPool.length){
+    endGame('trivia'); return;
+  }
   const q = triviaPool[triviaIndex];
-  const cont = document.getElementById('triviaContent');
-  cont.innerHTML = `<div class="phrase">${q.q}</div>`;
-  const optsDiv = document.createElement('div'); optsDiv.className='options';
+  const container = document.getElementById('triviaContent');
+  container.innerHTML = `<div class="phrase">${q.q}</div>`;
+  const opts = document.createElement('div'); opts.className='options';
   q.opts.forEach((o,i)=>{
-    const btn = document.createElement('button'); btn.className='option-btn'; btn.textContent = o;
-    btn.onclick = ()=>{
-      if(i === q.correct){
-        const pts = q.lvl==='easy'?10:q.lvl==='medium'?20:40; // hard = bigger reward
-        score += pts;
-        document.getElementById('scoreDisplay').textContent = `Puntos: ${score}`;
+    const b = document.createElement('button'); b.className='option-btn'; b.textContent = o;
+    b.onclick = ()=> {
+      if(i===q.correct){
+        let pts = q.lvl==='easy'?10:q.lvl==='medium'?20:30;
+        score += pts; document.getElementById('scoreDisplay').textContent = 'Puntos: '+score;
         sounds.ding.play();
         if(q.lvl==='hard'){ awardMedal('🧠 Maestro del Respeto'); addAchievement('Maestro del Respeto'); }
       } else {
-        score = Math.max(0, score - 5);
-        lives--; document.getElementById('livesDisplay').textContent = `Vidas: ${lives}`;
+        score -= 5; lives--; document.getElementById('livesDisplay').textContent = 'Vidas: '+lives;
         sounds.pop.play();
       }
-      if(lives <= 0) return endGame('trivia');
+      if(lives<=0) return endGame('trivia');
       triviaIndex++;
-      setTimeout(showTriviaQuestion, 600);
+      setTimeout(showTriviaQuestion, 700);
     };
-    optsDiv.appendChild(btn);
+    opts.appendChild(b);
   });
-  cont.appendChild(optsDiv);
+  container.appendChild(opts);
 }
 
-// ---------- WHO (Adivina quién soy) - NO CAMBIAR según solicitud ----------
-/* Mantengo exactamente la lógica existente (sin modificaciones de gameplay) */
-const frasesBank = [
-  { frase: "Me encanta hacer peinados locos.", autor: "Andrea" },
-  { frase: "Nada me relaja más que dibujar.", autor: "Loana" },
-  { frase: "Amo tocar el ukelele y componer canciones.", autor: "Emmanuel" },
-  { frase: "Roblox todo el día, todos los días.", autor: "Nadiencka" },
-  { frase: "Siempre con energía para el básquet.", autor: "Sneijder" },
-  { frase: "Mi guitarra y mis lentes rosados son mi estilo.", autor: "Lucciana" }
-];
-
+// ---------- JUEGO 2: WHO (Quién dijo eso) ----------
 function initWho(){
-  document.getElementById('whoScreen').classList.add('active');
-  score = 0; lives = 3;
-  showWhoQuestion();
-  startTimer('who', DEFAULT_GAME_TIME, (t)=>{ document.getElementById('timeDisplay').textContent = `⏱ ${t}s`; }, ()=>{
-    alert('⏰ Tiempo terminado en Adivina quién soy');
-    endGame('who');
-  });
+  document.getElementById('whoScreen').style.display='block';
+  loadWhoQuestion();
 }
-function showWhoQuestion(){
-  const q = frasesBank[Math.floor(Math.random()*frasesBank.length)];
+
+function loadWhoQuestion(){
+  // pick random phrase from bank (larger pool now)
+  const q = frasesBank[Math.floor(Math.random() * frasesBank.length)];
   document.getElementById('whoPhrase').textContent = q.frase;
-  const authors = frasesBank.map(f=>f.autor);
-  const wrong = pickRandom(authors.filter(a=>a!==q.autor), 3);
+  const authors = [...new Set(frasesBank.map(f => f.autor))]; // unique authors
+  const wrong = pickRandom(authors.filter(a => a !== q.autor), 3);
   const options = shuffle([q.autor, ...wrong]);
   const optDiv = document.getElementById('whoOptions'); optDiv.innerHTML = '';
-  options.slice(0,4).forEach(name=>{
+  options.forEach(name=>{
     const b = document.createElement('button'); b.className='option-btn'; b.textContent = name;
     b.onclick = ()=>{
       if(name === q.autor){
-        score += 15;
-        document.getElementById('scoreDisplay').textContent = `Puntos: ${score}`;
+        const delta = Math.max(5, 20 - Math.floor(Math.random()*10));
+        score += delta; document.getElementById('scoreDisplay').textContent='Puntos: '+score;
         sounds.ding.play();
-        if(score >= ACHIEVEMENT_THRESHOLD_SMALL){ awardMedal('🎭 Conozco a todos'); addAchievement('Conozco a todos'); }
+        if(score >= 80){ awardMedal('🎭 Conozco a todos'); addAchievement('Conozco a todos'); }
       } else {
-        score = Math.max(0, score - 5);
-        sounds.pop.play();
+        score -= 5; sounds.pop.play();
       }
-      setTimeout(showWhoQuestion, 500);
+      setTimeout(loadWhoQuestion, 600);
     };
     optDiv.appendChild(b);
   });
 }
 
-// ---------- HACKBALL (reemplaza al coop) - local 2 jugadores ----------
-let hackballState = {
-  active: false, animId: null, canvas: null, ctx: null,
-  p1: { x: 120, y: 200, w: 16, h: 64, color: '#0b3d91', score: 0 },
-  p2: { x: 464, y: 200, w: 16, h: 64, color: '#8b0b0b', score: 0 },
-  ball: { x: 300, y: 200, r: 10, vx: 3, vy: 2 },
-  keys: {},
-  remaining: HACKBALL_GAME_TIME,
-  startTs: null
-};
+// ---------- JUEGO 3: CATCH (Atrapa los útiles escolares) - cooperativo online ----------
+/*
+  Diseño:
+  - Cada jugador, al iniciar el juego, crea/actualiza su nodo en /catch/players/<playerId>
+  - Los objetos que caen se manejan localmente (visual), pero cuando atrapas uno, actualizas tu contador en Firebase.
+  - Al finalizar el tiempo (GAME_DURATION) leemos todos los jugadores en /catch/players y calculamos resultados; también guardamos el registro en /catch/results.
+*/
+function initCatch(){
+  document.getElementById('coopScreen').style.display='block';
+  // ensure root nodes exist
+  catchRef.child('players').once('value'); // noop - creates node if needed on writes
 
-function initHackball(){
-  document.getElementById('coopScreen').classList.add('active');
-  // prepare canvas inside coopScreen
+  // create a play area inside coopScreen
   const coop = document.getElementById('coopScreen');
-  coop.innerHTML = `
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-      <div>Jugador Azul: <span id="hackP1Score">0</span></div>
-      <div>Tiempo: <span id="hackTimeDisplay">${HACKBALL_GAME_TIME}</span>s</div>
-      <div>Jugador Rojo: <span id="hackP2Score">0</span></div>
-    </div>
-    <canvas id="hackCanvas" width="600" height="360" style="background:#ffffff;border:1px solid #000;"></canvas>
-    <div style="margin-top:6px;font-size:0.9rem;color:#555">Jugador 1: W/A/S/D • Jugador 2: Flechas</div>
-  `;
-  const canvas = document.getElementById('hackCanvas');
-  hackballState.canvas = canvas;
-  hackballState.ctx = canvas.getContext('2d');
-  // reset players and ball
-  hackballState.p1.x = 60; hackballState.p1.y = canvas.height/2;
-  hackballState.p1.score = 0;
-  hackballState.p2.x = canvas.width - 76; hackballState.p2.y = canvas.height/2;
-  hackballState.p2.score = 0;
-  hackballState.ball.x = canvas.width/2; hackballState.ball.y = canvas.height/2;
-  hackballState.ball.vx = (Math.random()>0.5?1:-1)* (3 + Math.random()*1.5);
-  hackballState.ball.vy = (Math.random()>0.5?1:-1)* (2 + Math.random()*1.2);
-  hackballState.keys = {};
-  hackballState.active = true;
-  hackballState.startTs = Date.now();
-  hackballState.remaining = HACKBALL_GAME_TIME;
-  // input listeners
-  window.addEventListener('keydown', hackballKeyDown);
-  window.addEventListener('keyup', hackballKeyUp);
-  // start timer display
-  startTimer('hackball', HACKBALL_GAME_TIME, (t)=> {
-    hackballState.remaining = t;
-    document.getElementById('hackTimeDisplay').textContent = t;
-  }, ()=> {
-    endHackball();
+  let area = document.getElementById('catchArea');
+  if(area) area.remove();
+  area = document.createElement('div');
+  area.id = 'catchArea';
+  area.style.position = 'relative';
+  area.style.width = '100%';
+  area.style.height = '300px';
+  area.style.border = '2px dashed #ccc';
+  area.style.marginTop = '12px';
+  area.style.overflow = 'hidden';
+  coop.appendChild(area);
+
+  // scoreboard & controls
+  let scoreBox = document.getElementById('catchScoreBox');
+  if(scoreBox) scoreBox.remove();
+  scoreBox = document.createElement('div');
+  scoreBox.id = 'catchScoreBox';
+  scoreBox.innerHTML = `<div style="margin-top:8px">Tu punts: <span id="myCatchScore">0</span></div>
+                        <div style="margin-top:6px">Equipo total: <span id="teamCatchTotal">0</span></div>
+                        <div style="margin-top:6px"><button id="leftBtn" class="btn ghost">◀</button> <button id="rightBtn" class="btn ghost">▶</button></div>`;
+  coop.appendChild(scoreBox);
+
+  // create basket element (player-controlled)
+  const basket = document.createElement('div');
+  basket.id = 'catchBasket';
+  basket.style.position = 'absolute';
+  basket.style.bottom = '8px';
+  basket.style.left = '50%';
+  basket.style.transform = 'translateX(-50%)';
+  basket.style.width = '120px';
+  basket.style.height = '36px';
+  basket.style.background = '#b23b3b';
+  basket.style.borderRadius = '8px';
+  basket.style.display = 'flex';
+  basket.style.alignItems = 'center';
+  basket.style.justifyContent = 'center';
+  basket.style.color = 'white';
+  basket.style.fontWeight = '700';
+  basket.textContent = playerName;
+  area.appendChild(basket);
+
+  // movement variables
+  let basketX = area.clientWidth/2 - 60; // left px
+  function updateBasketPosition(){
+    basket.style.left = `${basketX}px`;
+  }
+
+  // keyboard controls (A/D and arrows)
+  function onKey(e){
+    if(!catchActive) return;
+    const step = 20;
+    if(e.key === 'a' || e.key === 'A') basketX = Math.max(0, basketX - step);
+    if(e.key === 'd' || e.key === 'D') basketX = Math.min(area.clientWidth - 120, basketX + step);
+    if(e.key === 'ArrowLeft') basketX = Math.max(0, basketX - step);
+    if(e.key === 'ArrowRight') basketX = Math.min(area.clientWidth - 120, basketX + step);
+    updateBasketPosition();
+  }
+  document.addEventListener('keydown', onKey);
+
+  // on-screen buttons
+  document.getElementById('leftBtn').onclick = ()=>{ basketX = Math.max(0, basketX - 40); updateBasketPosition(); };
+  document.getElementById('rightBtn').onclick = ()=>{ basketX = Math.min(area.clientWidth - 120, basketX + 40); updateBasketPosition(); };
+
+  // initialize player's score in DB
+  const pid = sanitizeId(playerName);
+  playerCatchScore = 0;
+  catchPlayersRef.child(pid).set({ name: playerName, score: 0, ts: Date.now() });
+
+  // listen team total
+  catchPlayersRef.on('value', snap=>{
+    const val = snap.val() || {};
+    const total = Object.values(val).reduce((s, p) => s + (p.score || 0), 0);
+    document.getElementById('teamCatchTotal').textContent = total;
+    // if team reaches threshold, award
+    if(total >= CATCH_THRESHOLD_TOTAL){
+      awardMedal('🤝 Equipo Legendario');
+    }
   });
-  // animation loop
-  function loop(){
-    if(!hackballState.active) return;
-    updateHackballPhysics();
-    renderHackball();
-    hackballState.animId = requestAnimationFrame(loop);
-  }
-  loop();
+
+  // spawn loop: create falling items visually, each client spawns its own visuals
+  catchActive = true;
+  localCatchSpawnInterval = setInterval(()=> spawnCatchItem(area, basket, pid), CATCH_SPAWN_INTERVAL);
+
+  // stop/cleanup will be handled by endGame() which calls stopAllGameActivities()
 }
 
-function hackballKeyDown(e){
-  hackballState.keys[e.key] = true;
-}
-function hackballKeyUp(e){
-  hackballState.keys[e.key] = false;
+// creates a falling item inside area; checks collision with basket on bottom
+function spawnCatchItem(area, basket, pid){
+  if(!catchActive) return;
+  const item = document.createElement('div');
+  item.className = 'catchItem';
+  item.style.position = 'absolute';
+  const itemSize = 28 + Math.floor(Math.random()*22); // 28-50px
+  const maxX = Math.max(0, area.clientWidth - itemSize);
+  const startX = Math.floor(Math.random() * maxX);
+  item.style.left = `${startX}px`;
+  item.style.top = `-40px`;
+  item.style.width = `${itemSize}px`;
+  item.style.height = `${itemSize}px`;
+  item.style.borderRadius = '6px';
+  // random school item colors/icons (simple)
+  const types = ['📘','✏️','📎','📓','📐','🖍️'];
+  const type = types[Math.floor(Math.random()*types.length)];
+  item.textContent = type;
+  item.style.fontSize = `${Math.max(12, Math.floor(itemSize*0.6))}px`;
+  item.style.display = 'flex';
+  item.style.alignItems = 'center';
+  item.style.justifyContent = 'center';
+  area.appendChild(item);
+
+  const startTime = Date.now();
+  const duration = CATCH_FALL_TIME + Math.random()*800; // ms to fall
+  let rafId = null;
+  const animation = { raf: null, el: item, to: null };
+  localCatchAnimations.push(animation);
+
+  function animate(){
+    const elapsed = Date.now() - startTime;
+    const progress = Math.min(1, elapsed / duration);
+    const y = progress * (area.clientHeight - 40);
+    item.style.top = `${y - 20}px`; // offset
+    // collision check when near bottom
+    if(progress >= 0.98){
+      // compute basket bounds
+      const basketRect = basket.getBoundingClientRect();
+      const areaRect = area.getBoundingClientRect();
+      const itemRect = item.getBoundingClientRect();
+      // relative x within area
+      const itemCenterX = itemRect.left + itemRect.width/2 - areaRect.left;
+      const basketLeft = basket.offsetLeft;
+      const basketRight = basketLeft + basket.offsetWidth;
+      if(itemCenterX >= basketLeft && itemCenterX <= basketRight){
+        // caught
+        playerCatchScore++;
+        document.getElementById('myCatchScore').textContent = playerCatchScore;
+        // update DB
+        catchPlayersRef.child(pid).child('score').transaction(old => (old||0)+1);
+        // small effect
+        sounds.ding.play();
+      }
+      // remove item
+      item.remove();
+      // cleanup animation entry
+      if(animation.raf) cancelAnimationFrame(animation.raf);
+      return;
+    }
+    animation.raf = requestAnimationFrame(animate);
+  }
+  animation.raf = requestAnimationFrame(animate);
 }
 
-function updateHackballPhysics(){
-  const canvas = hackballState.canvas;
-  const p1 = hackballState.p1, p2 = hackballState.p2, ball = hackballState.ball;
-  // move paddles (limit to canvas)
-  const speed = 5;
-  if(hackballState.keys['w'] || hackballState.keys['W']) p1.y -= speed;
-  if(hackballState.keys['s'] || hackballState.keys['S']) p1.y += speed;
-  if(hackballState.keys['ArrowUp']) p2.y -= speed;
-  if(hackballState.keys['ArrowDown']) p2.y += speed;
-  p1.y = Math.max(p1.h/2, Math.min(canvas.height - p1.h/2, p1.y));
-  p2.y = Math.max(p2.h/2, Math.min(canvas.height - p2.h/2, p2.y));
-  // ball physics
-  ball.x += ball.vx; ball.y += ball.vy;
-  // bounce top/bottom
-  if(ball.y - ball.r < 0 || ball.y + ball.r > canvas.height) ball.vy *= -1;
-  // check collisions with paddles (rectangular)
-  // p1 collision
-  if(ball.x - ball.r < p1.x + p1.w && ball.x - ball.r > p1.x && Math.abs(ball.y - p1.y) < p1.h/2 + ball.r){
-    ball.vx = Math.abs(ball.vx) + 0.2;
-    // tweak vy based on where it hit
-    ball.vy += (ball.y - p1.y) * 0.02;
-  }
-  // p2 collision
-  if(ball.x + ball.r > p2.x && ball.x + ball.r < p2.x + p2.w && Math.abs(ball.y - p2.y) < p2.h/2 + ball.r){
-    ball.vx = -Math.abs(ball.vx) - 0.2;
-    ball.vy += (ball.y - p2.y) * 0.02;
-  }
-  // goals: left and right beyond paddle area -> assign goal
-  if(ball.x - ball.r <= 0){
-    // goal for player2
-    hackballState.p2.score++;
-    document.getElementById('hackP2Score').textContent = hackballState.p2.score;
-    sounds.ding.play();
-    resetHackballAfterGoal();
-  } else if(ball.x + ball.r >= canvas.width){
-    hackballState.p1.score++;
-    document.getElementById('hackP1Score').textContent = hackballState.p1.score;
-    sounds.ding.play();
-    resetHackballAfterGoal();
-  }
-  // check win condition
-  if(hackballState.p1.score >= HACKBALL_GOALS_TO_WIN || hackballState.p2.score >= HACKBALL_GOALS_TO_WIN){
-    endHackball();
-  }
-}
-
-function renderHackball(){
-  const ctx = hackballState.ctx, canvas = hackballState.canvas;
-  // minimalistic field: white background, black goals
-  ctx.clearRect(0,0,canvas.width,canvas.height);
-  // field background (white already)
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0,0,canvas.width,canvas.height);
-  // center line
-  ctx.strokeStyle = '#000000'; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(canvas.width/2,0); ctx.lineTo(canvas.width/2, canvas.height); ctx.stroke();
-  // goals as black rectangles on left and right edges
-  ctx.fillStyle = '#000000';
-  ctx.fillRect(0, canvas.height/2 - 60, 6, 120); // left goal post
-  ctx.fillRect(canvas.width - 6, canvas.height/2 - 60, 6, 120); // right goal post
-  // paddles
-  ctx.fillStyle = hackballState.p1.color;
-  ctx.fillRect(hackballState.p1.x - hackballState.p1.w/2, hackballState.p1.y - hackballState.p1.h/2, hackballState.p1.w, hackballState.p1.h);
-  ctx.fillStyle = hackballState.p2.color;
-  ctx.fillRect(hackballState.p2.x - hackballState.p2.w/2, hackballState.p2.y - hackballState.p2.h/2, hackballState.p2.w, hackballState.p2.h);
-  // ball
-  ctx.beginPath(); ctx.arc(hackballState.ball.x, hackballState.ball.y, hackballState.ball.r, 0, Math.PI*2);
-  ctx.fillStyle = '#222'; ctx.fill();
-  // scores (drawn elsewhere in UI)
-}
-
-function resetHackballAfterGoal(){
-  // reset ball to center with random direction
-  hackballState.ball.x = hackballState.canvas.width/2;
-  hackballState.ball.y = hackballState.canvas.height/2;
-  hackballState.ball.vx = (Math.random()>0.5?1:-1) * (3 + Math.random()*1.5);
-  hackballState.ball.vy = (Math.random()>0.5?1:-1) * (2 + Math.random()*1.2);
-}
-
-function endHackball(){
-  // stop timer
-  stopTimer('hackball');
-  hackballState.active = false;
-  if(hackballState.animId) cancelAnimationFrame(hackballState.animId);
-  window.removeEventListener('keydown', hackballKeyDown);
-  window.removeEventListener('keyup', hackballKeyUp);
-  // decide winner
-  const p1 = hackballState.p1.score, p2 = hackballState.p2.score;
-  let message = `Resultado final: ${p1} - ${p2}\n`;
-  if(p1 > p2) message += "¡Jugador Azul gana!"; else if(p2 > p1) message += "¡Jugador Rojo gana!"; else message += "Empate.";
-  alert(message);
-  // award DB + local medals: winner gets reward points
-  if(playerRef){
-    // award the local player depending on being p1 or p2? Since this is local two-player, we only save a small reward to current player
-    const localIsP1 = true; // ambiguous in local mode; we'll just award both players generic team medal
-    awardMedal('⚽ Equipo Legendario');
-    addAchievement('Equipo Legendario');
-    // add some points to the current player's overall score as reward
-    playerRef.child('score').transaction(old => (old||0) + (p1>p2? 50 : p2>p1 ? 50 : 20));
-    saveScoreToDB('hackball', (p1>p2? 50 : p2>p1 ? 50 : 20));
-  }
-  // return to menu
-  goHome();
-}
-
-function stopHackball(){
-  if(hackballState.active){
-    hackballState.active = false;
-    if(hackballState.animId) cancelAnimationFrame(hackballState.animId);
-    window.removeEventListener('keydown', hackballKeyDown);
-    window.removeEventListener('keyup', hackballKeyUp);
-    stopTimer('hackball');
-  }
-}
-
-// ---------- REACTIONS (corregido para mostrarse) ----------
-let reactState = { active:false, roundTimeout:null, roundStart:0, best: reactBest };
+// ---------- JUEGO 4: REACTIONS ----------
+let reactTimer = null;
 function initReact(){
-  document.getElementById('reactScreen').classList.add('active');
-  score = 0; lives = 3;
-  document.getElementById('scoreDisplay').textContent = 'Puntos: 0';
-  document.getElementById('livesDisplay').textContent = `Vidas: ${lives}`;
-  document.getElementById('reactBest').textContent = reactState.best ? `Mejor reacción: ${reactState.best} ms` : 'Aún sin mejor tiempo';
-  reactState.active = true;
-  reactState.roundStart = 0;
-  // timer 45s
-  startTimer('react', DEFAULT_GAME_TIME, (t)=>{ document.getElementById('reactTimer').textContent = `⏱ Tiempo restante: ${t}s`; document.getElementById('timeDisplay').textContent = `⏱ ${t}s`; }, ()=> {
-    alert('⏰ Se terminó el tiempo en Batalla de Reacciones.');
-    endGame('react');
-  });
+  document.getElementById('reactScreen').style.display='block';
+  reactRound = 0;
+  reactTimeLeft = reactTimeTotal = GAME_DURATION;
+  document.getElementById('reactBest').textContent = bestReaction ? `Mejor reacción: ${bestReaction} ms` : 'Aún sin mejor tiempo';
+  startReactCountdown();
   showReactRound();
 }
+function startReactCountdown(){
+  clearInterval(reactInterval);
+  reactInterval = setInterval(()=>{
+    reactTimeLeft--;
+    document.getElementById('reactTimer').textContent = `⏱ Tiempo restante: ${reactTimeLeft}s`;
+    document.getElementById('timeDisplay').textContent = `⏱ ${reactTimeLeft}s`;
+    if(reactTimeLeft <= 0){
+      clearInterval(reactInterval);
+      alert('⏰ Se terminó el tiempo en Batalla de Reacciones.');
+      if(bestReaction && bestReaction <= 300) awardMedal('⚡ Reflejos Relámpago');
+      endGame('react');
+    }
+  },1000);
+}
 function showReactRound(){
-  if(!reactState.active) return;
-  reactState.roundStart = Date.now();
+  reactRound++;
   const grid = document.getElementById('reactGrid');
   grid.innerHTML = '';
-  const targets = ["Respeto","Solidaridad","Tolerancia","Escuchar","Compartir","Paz"];
-  const correct = targets[Math.floor(Math.random()*targets.length)];
-  const pool = shuffle(targets).slice(0,5);
-  if(!pool.includes(correct)) pool[0] = correct;
-  pool.forEach(t => {
-    const btn = document.createElement('button'); btn.className='react-btn'; btn.textContent = t;
-    btn.onclick = ()=>{
-      if(!reactState.active) return;
-      const reactionMs = Date.now() - reactState.roundStart;
-      clearTimeout(reactState.roundTimeout);
-      if(t === correct){
-        const pts = Math.max(5, 30 - (Math.floor((DEFAULT_GAME_TIME - (gameTimers['react'] ? 0 : 0)))));
-        score += pts;
-        document.getElementById('scoreDisplay').textContent = `Puntos: ${score}`;
+  const correct = reactTargets[Math.floor(Math.random()*reactTargets.length)];
+  const pool = shuffle(reactTargets).slice(0,5);
+  if(!pool.includes(correct)) pool[0]=correct;
+  pool.forEach(text=>{
+    const b = document.createElement('button');
+    b.className='react-btn';
+    b.textContent = text;
+    b.onclick = ()=>{
+      const reactionMs = Date.now() - roundStart;
+      clearTimeout(reactTimer);
+      if(text === correct){
+        const pts = Math.max(5, 30 - reactRound*2);
+        score += pts; document.getElementById('scoreDisplay').textContent='Puntos: '+score;
         sounds.ding.play();
-        if(!reactState.best || reactionMs < reactState.best){
-          reactState.best = reactionMs;
-          localStorage.setItem('reactBest', reactState.best);
-          document.getElementById('reactBest').textContent = `Mejor reacción: ${reactState.best} ms`;
+        if(!bestReaction || reactionMs < bestReaction){
+          bestReaction = reactionMs;
+          localStorage.setItem('bestReaction', bestReaction);
+          document.getElementById('reactBest').textContent = `Mejor reacción: ${bestReaction} ms`;
         }
-        if(reactionMs <= 300){
-          awardMedal('⚡ Reflejos Relámpago'); addAchievement('Reflejos Relámpago');
-        }
+        if(reactionMs <= 300) { awardMedal('⚡ Reflejos Relámpago'); addAchievement('Reflejos Relámpago'); }
       } else {
-        score = Math.max(0, score - 5);
-        lives--; document.getElementById('livesDisplay').textContent = `Vidas: ${lives}`;
+        score -= 5; lives--; document.getElementById('livesDisplay').textContent = 'Vidas: ' + lives;
         sounds.pop.play();
-        if(lives <= 0) return endGame('react');
+        if(lives<=0) return endGame('react');
       }
-      // next round
-      setTimeout(()=> {
-        if(reactState.active) showReactRound();
-      }, 300);
+      setTimeout(()=>{ roundStart = Date.now(); showReactRound(); }, 300);
     };
-    grid.appendChild(btn);
+    grid.appendChild(b);
   });
-  // auto-fail if not clicked quickly
-  reactState.roundTimeout = setTimeout(()=>{
-    lives--; document.getElementById('livesDisplay').textContent = `Vidas: ${lives}`;
-    if(lives <= 0) return endGame('react');
+  roundStart = Date.now();
+  reactTimer = setTimeout(()=>{
+    lives--; document.getElementById('livesDisplay').textContent = 'Vidas: ' + lives;
+    if(lives<=0) return endGame('react');
     showReactRound();
   }, 2000);
 }
-function stopReact(){
-  reactState.active = false;
-  if(reactState.roundTimeout) clearTimeout(reactState.roundTimeout);
-  stopTimer('react');
-}
 
-// ---------- END GAME (common) ----------
+// ---------- END GAME ----------
 function endGame(gameType){
-  // stop all timers for the game
-  stopTimer(gameType);
-  stopHackball();
-  stopReact();
+  stopAllGameActivities();
   sounds.win.play();
   alert(`Fin de ${gameType.toUpperCase()}! Puntos obtenidos: ${score}`);
+  // save individual score
   saveScoreToDB(gameType, score);
-  // award common medals thresholds updated
-  if(playerRef){
-    if(score >= ACHIEVEMENT_THRESHOLD_SMALL) awardMedal('🥈 Jugador Constante');
-    if(score >= ACHIEVEMENT_THRESHOLD_CHAMP) awardMedal('🥇 Campeón Global');
-    // update player's overall score
-    playerRef.child('score').transaction(old => (old||0) + score);
+  // awards
+  if(score >= 100) awardMedal('🥇 Campeón Global');
+  if(score >= 30) awardMedal('🥈 Jugador Constante');
+  if(playerRef) playerRef.child('score').transaction(old => (old||0) + score);
+
+  // special handling for 'catch': show team results and save record
+  if(gameType === 'coop'){
+    // read all players in catch and show leaderboard for this session
+    catchPlayersRef.once('value').then(snap=>{
+      const val = snap.val() || {};
+      const arr = Object.values(val).sort((a,b) => (b.score || 0) - (a.score || 0));
+      let msg = 'Resultados - Atrapa los útiles (por jugador):\n';
+      Object.entries(val).forEach(([pid, p]) => {
+        msg += `${p.name}: ${p.score || 0}\n`;
+      });
+      // push to results log
+      db.ref('catch/results').push({ players: val, timestamp: Date.now() });
+      alert(msg);
+    });
   }
+
   goHome();
 }
 
-// ---------- INICIALIZACIÓN ----------
-document.addEventListener('DOMContentLoaded', ()=>{
+// ---------- INIT / BOOT ----------
+function initApp(){
+  // if playerName present, auto-login
   if(playerName){
-    playerRef = db.ref('players/' + sanitizeId(playerName));
-    showMenu();
+    startSession(playerName);
   } else {
-    loginScreen.style.display = 'block';
+    loginScreen.style.display='block';
   }
-});
+}
+
+// initial load
+document.addEventListener('DOMContentLoaded', initApp);
 
