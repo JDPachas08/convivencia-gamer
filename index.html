@@ -17,7 +17,7 @@
   </div>
 
   <main class="container">
-    <!-- Login / Apodo -->
+    <!-- Login -->
     <section id="loginScreen" class="card center">
       <h2>👋 Bienvenido</h2>
       <p>Ingresa tu apodo para empezar</p>
@@ -28,23 +28,23 @@
       <small class="muted">Tu apodo se usará para ranking y logros.</small>
     </section>
 
-    <!-- Menu -->
+    <!-- Menú -->
     <section id="menuScreen" class="card games-menu" style="display:none;">
       <h2>Elige un juego</h2>
       <div class="grid">
         <div class="game-card" onclick="startGame('trivia')">
           <h3>🧠 Trivia de Convivencia</h3>
-          <p>Niveles: fácil, medio, difícil. 3 vidas por partida.</p>
+          <p>Responde preguntas de respeto y trabajo en equipo.</p>
           <button class="btn">Jugar</button>
         </div>
         <div class="game-card" onclick="startGame('who')">
           <h3>🎭 Quién dijo eso?</h3>
-          <p>Adivina quién dijo la frase. ¡Rápido = más puntos!</p>
+          <p>Adivina quién dijo la frase.</p>
           <button class="btn">Jugar</button>
         </div>
         <div class="game-card" onclick="startGame('hackball')">
           <h3>⚽ Hackball Escolar</h3>
-          <p>Juega en pareja y marca goles en 2 minutos.</p>
+          <p>Dos jugadores locales. Marca 3 goles antes de 2 minutos.</p>
           <button class="btn">Jugar</button>
         </div>
         <div class="game-card" onclick="startGame('react')">
@@ -64,7 +64,7 @@
       </div>
     </section>
 
-    <!-- Game Areas -->
+    <!-- Zona de juegos -->
     <section id="gameArea" style="display:none;">
       <div class="game-header">
         <button class="btn ghost" onclick="goHome()">← Volver</button>
@@ -77,7 +77,7 @@
 
       <!-- Trivia -->
       <div id="triviaScreen" class="card screen" style="display:none;">
-        <h2 id="triviaTitle">Trivia</h2>
+        <h2 id="triviaTitle">Trivia de Convivencia</h2>
         <div id="triviaContent"></div>
       </div>
 
@@ -89,31 +89,30 @@
       </div>
 
       <!-- Hackball -->
-      <div id="coopScreen" class="card screen" style="display:none;">
+      <div id="hackballScreen" class="card screen" style="display:none;">
         <h2>⚽ Hackball Escolar</h2>
-        <div id="coopMission" class="phrase"></div>
-        <div id="coopStatus" class="muted small mt"></div>
+        <canvas id="hackballCanvas" width="600" height="400" style="background:white; border:2px solid black; display:block; margin:auto;"></canvas>
+        <div id="hackballStatus" class="muted small mt center"></div>
       </div>
 
       <!-- Reactions -->
       <div id="reactScreen" class="card screen" style="display:none;">
-        <h2>Batalla de Reacciones</h2>
-        <div id="reactInfo" class="muted small">Instrucción: presiona la opción correcta lo más rápido que puedas. Tienes un tiempo total por ronda.</div>
-        <div id="reactTimer" class="muted small mt"></div>
-        <div id="reactGrid" class="react-grid"></div>
+        <h2>⚡ Batalla de Reacciones</h2>
+        <div id="reactInfo" class="muted small">Instrucción: presiona lo correcto lo más rápido posible.</div>
+        <div id="reactGrid" class="react-grid" style="min-height:200px;"></div>
         <div id="reactBest" class="muted small mt"></div>
       </div>
     </section>
 
-    <!-- Medals panel -->
+    <!-- Medallas -->
     <section id="medalsPanel" class="card" style="display:none; margin-top:16px;">
       <h3>🏅 Mis Medallas</h3>
       <ul id="medalsList"></ul>
       <div class="muted small mt">
         <strong>Significado:</strong>
         <ul>
-          <li>🥇 Campeón Global — Score total ≥ 5000</li>
-          <li>🥈 Jugador Constante — Score total ≥ 300</li>
+          <li>🥇 Campeón Global — Score ≥ 5000</li>
+          <li>🥈 Jugador Constante — Score ≥ 300</li>
           <li>🧠 Maestro del Respeto — Trivia difícil completada</li>
           <li>🎭 Conozco a todos — Aciertos en "Quién dijo eso"</li>
           <li>⚽ Equipo Legendario — Ganar en Hackball Escolar</li>
@@ -121,7 +120,6 @@
         </ul>
       </div>
     </section>
-
   </main>
 
   <footer class="footer">
