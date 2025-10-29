@@ -58,10 +58,18 @@ const rankingList = document.getElementById('rankingList');
 const medalsPanel = document.getElementById('medalsPanel');
 const medalsList = document.getElementById('medalsList');
 
+// Crear contenedor para Trivia si no existe
+let triviaContent = document.getElementById('triviaContent');
+if(!triviaContent){
+  triviaContent = document.createElement('div');
+  triviaContent.id = 'triviaContent';
+  document.getElementById('triviaScreen').appendChild(triviaContent);
+}
+
 // helper to hide screens
 function hideAllScreens(){
   document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
-  document.getElementById('medalsPanel').style.display = 'none';
+  medalsPanel.style.display = 'none';
 }
 
 // ---------- LOGIN ----------
@@ -123,8 +131,7 @@ function renderMedalsList(){
 }
 
 function toggleMedals(){
-  const panel = document.getElementById('medalsPanel');
-  panel.style.display = (panel.style.display === 'none' || panel.style.display === '') ? 'block' : 'none';
+  medalsPanel.style.display = (medalsPanel.style.display === 'none' || medalsPanel.style.display === '') ? 'block' : 'none';
 }
 
 function goHome(){
@@ -234,8 +241,7 @@ function showTriviaQuestion(){
     return;
   }
   const q = triviaPool[triviaIndex];
-  const container = document.getElementById('triviaContent');
-  container.innerHTML = `<div class="phrase">${q.q}</div>`;
+  triviaContent.innerHTML = `<div class="phrase">${q.q}</div>`;
   const opts = document.createElement('div'); opts.className='options';
   q.opts.forEach((o,i)=>{
     const b = document.createElement('button');
@@ -258,7 +264,7 @@ function showTriviaQuestion(){
     };
     opts.appendChild(b);
   });
-  container.appendChild(opts);
+  triviaContent.appendChild(opts);
 }
 
 // ---------- JUEGO 2: WHO ----------
@@ -304,7 +310,7 @@ function loadWhoQuestion(){
   });
 }
 
-// ---------- JUEGO 3: COOP (FÚTBOL VISIBLE) ----------
+// ---------- JUEGO 3: COOP ----------
 function initCoop(){
   document.getElementById('coopScreen').style.display='block';
   const goalBtn = document.getElementById('coopGoalBtn');
@@ -334,7 +340,7 @@ function initCoop(){
   };
 }
 
-// ---------- JUEGO 4: REACT (GOLPE RÁPIDO CON OBJETIVO VISIBLE) ----------
+// ---------- JUEGO 4: REACT ----------
 function initReact(){
   document.getElementById('reactScreen').style.display='block';
   reactGrid = document.getElementById('reactGrid');
@@ -391,7 +397,6 @@ function endGame(game){
   clearInterval(reactInterval);
   alert(`🎮 Juego terminado! Obtuviste ${score} puntos`);
   saveScoreToDB(game, score);
-  // otorgar medallas según puntos
   if(score>=5000) awardMedal('🏆 Leyenda');
   else if(score>=500) awardMedal('🥇 Prodigio');
   goHome();
