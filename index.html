@@ -54,6 +54,10 @@
         </div>
       </div>
 
+      <div class="row mt">
+        <button class="btn ghost" onclick="toggleMedals()">Ver Medallas</button>
+      </div>
+
       <div class="leaderboard card mt">
         <h3>🏆 Ranking Global</h3>
         <ul id="rankingList"></ul>
@@ -67,6 +71,7 @@
         <div class="game-status">
           <span id="scoreDisplay">Puntos: 0</span>
           <span id="livesDisplay"></span>
+          <span id="timeDisplay" style="margin-left:12px;"></span>
         </div>
       </div>
 
@@ -97,9 +102,30 @@
       <!-- Reactions -->
       <div id="reactScreen" class="card screen" style="display:none;">
         <h2>Batalla de Reacciones</h2>
+        <div id="reactInfo" class="muted small">Instrucción: presiona la opción correcta lo más rápido que puedas. Tienes un tiempo total por ronda.</div>
+        <div id="reactTimer" class="muted small mt"></div>
         <div id="reactGrid" class="react-grid"></div>
+        <div id="reactBest" class="muted small mt"></div>
       </div>
     </section>
+
+    <!-- Medals panel (hidden by default) -->
+    <section id="medalsPanel" class="card" style="display:none; margin-top:16px;">
+      <h3>🏅 Mis Medallas</h3>
+      <ul id="medalsList"></ul>
+      <div class="muted small mt">
+        <strong>Significado:</strong>
+        <ul>
+          <li>🥇 Campeón Global — Score total ≥ 100</li>
+          <li>🥈 Jugador Constante — Score total ≥ 30</li>
+          <li>🧠 Maestro del Respeto — Trivia difícil completada</li>
+          <li>🎭 Conozco a todos — Aciertos en "Quién dijo eso"</li>
+          <li>🤝 Equipo Legendario — Completar misiones cooperativas</li>
+          <li>⚡ Reflejos Relámpago — Racha de reacciones</li>
+        </ul>
+      </div>
+    </section>
+
   </main>
 
   <footer class="footer">
@@ -109,6 +135,11 @@
   <!-- ✅ Firebase versión clásica (compatible con tu script.js) -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+  <!-- ✅ Tu script principal -->
+  <script src="script.js"></script>
+</body>
+</html>
 
   <!-- ✅ Tu script principal -->
   <script src="script.js"></script>
