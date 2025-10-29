@@ -103,6 +103,7 @@ function showMenu(){
   loadGlobalRanking();
   listenPlayerUpdates();
   renderMedalsList();
+  showAllMedals();
 }
 
 // Listen player updates
@@ -114,6 +115,7 @@ function listenPlayerUpdates(){
     const medals = val.medals || [];
     document.getElementById('medalsBadge').innerHTML = medals.map(m => `<span>${m}</span>`).join(' ');
     renderMedalsList();
+    showAllMedals();
   });
 }
 
@@ -142,8 +144,6 @@ function goHome(){
   reactTimeLeft = 30;
   clearInterval(reactInterval);
   clearInterval(globalTimerInterval);
-  if(catchSpawnInterval) clearInterval(catchSpawnInterval);
-  if(catchTimerInterval) clearInterval(catchTimerInterval);
   document.getElementById('scoreDisplay').textContent = 'Puntos: 0';
   document.getElementById('livesDisplay').textContent = '';
   document.getElementById('timeDisplay').textContent = '';
@@ -225,6 +225,40 @@ function addAchievement(name){
   });
 }
 
+// ---------- LISTA DE TODAS LAS MEDALLAS ----------
+const allMedals = [
+  { emoji: "🧠", name: "Maestro del Respeto", description: "Por responder correctamente preguntas difíciles de la trivia." },
+  { emoji: "🎯", name: "Maestro Cazador", description: "Por obtener 200 puntos o más en Caza Objetos." },
+  { emoji: "🏹", name: "Cazador Hábil", description: "Por obtener entre 100 y 199 puntos en Caza Objetos." },
+  { emoji: "🥇", name: "Prodigio", description: "Por acumular 500 puntos o más en cualquier juego." },
+  { emoji: "🏆", name: "Leyenda", description: "Por acumular 5000 puntos o más en cualquier juego." }
+];
+
+function showAllMedals(){
+  if(!menuScreen) return;
+  let container = document.getElementById('allMedalsList');
+  if(!container){
+    const panel = document.createElement('div');
+    panel.id = 'allMedalsPanel';
+    panel.style.padding = '10px';
+    panel.style.background = '#f0f0f0';
+    panel.style.border = '1px solid #ccc';
+    panel.style.borderRadius = '8px';
+    panel.style.marginTop = '10px';
+    panel.innerHTML = `<h3>🎖 Todas las medallas</h3><ul id="allMedalsList"></ul>`;
+    menuScreen.appendChild(panel);
+    container = document.getElementById('allMedalsList');
+  }
+  if(!playerRef) return;
+  playerRef.once('value').then(snap=>{
+    const playerMedals = snap.val()?.medals || [];
+    container.innerHTML = allMedals.map(m => {
+      const owned = playerMedals.includes(m.name) ? '✅' : '❌';
+      return `<li style="margin-bottom:6px;"><strong>${m.emoji} ${m.name}</strong> ${owned}: ${m.description}</li>`;
+    }).join('');
+  });
+}
+
 // ---------- JUEGO 1: TRIVIA ----------
 const triviaQuestions = [
   {q:"¿Qué harías si ves a alguien triste en clase?", opts:["Reírte","Preguntar si está bien","Ignorarlo"], correct:1, lvl:'easy'},
@@ -297,7 +331,7 @@ function loadWhoQuestion(){
   optDiv.innerHTML = '';
   options.forEach(name=>{
     const b = document.createElement('button');
-    b.className='option-btn';
+    b.className = 'option-btn';
     b.textContent = name;
     b.onclick = ()=>{
       if(name === q.autor){
@@ -322,9 +356,7 @@ const catchObjectsCategories = [
   { name: "🐶 Animales", target: "🐶", distractors: ["🍌","⚽","🎮","🌟"] },
   { name: "🎮 Juegos", target: "🎮", distractors: ["🍎","🐱","⚽","🌟"] }
 ];
-
-let catchSpawnInterval = null;
-let catchTimerInterval = null;
+let catchObjectsInterval = null;
 let catchObjectsTime = 30;
 let catchObjectsScore = 0;
 let catchObjectsLives = 3;
@@ -333,39 +365,47 @@ let currentCategory = null;
 function initCoop(){
   const screen = document.getElementById('coopScreen');
   screen.style.display='block';
-  screen.innerHTML = ''; // clear previous content
+  screen.innerHTML = '';
+
+  const header = document.createElement('div');
+  header.className = 'center';
+  screen.appendChild(header);
 
   currentCategory = pickRandom(catchObjectsCategories,1)[0];
-
-  screen.innerHTML = `<h2 class="center">Caza Objetos 🏹</h2>
+  header.innerHTML = `<h2>Caza Objetos 🏹</h2>
     <p class="muted small">Categoría: <strong>${currentCategory.name}</strong></p>
-    <div id="catchArea" style="position:relative;width:100%;height:300px;border:1px solid #ccc;background:#f9f9f9;overflow:hidden;border-radius:12px;margin-top:12px;"></div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:10px;">
-      <div>Puntos: <span id="catchScore">0</span></div>
-      <div>Vidas: <span id="catchLives">3</span></div>
-      <div>Tiempo: <span id="catchTime">30s</span></div>
-      <button id="catchEndEarly" class="btn ghost">Terminar juego</button>
-    </div>
   `;
+
+  const areaDiv = document.createElement('div');
+  areaDiv.id = 'catchArea';
+  areaDiv.style.cssText = 'position:relative;width:100%;height:300px;border:1px solid #ccc;background:#f9f9f9;overflow:hidden;border-radius:12px;margin-top:12px;';
+  screen.appendChild(areaDiv);
+
+  const infoDiv = document.createElement('div');
+  infoDiv.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:10px;';
+  infoDiv.innerHTML = `
+    <div>Puntos: <span id="catchScore">${catchObjectsScore}</span></div>
+    <div>Vidas: <span id="catchLives">${catchObjectsLives}</span></div>
+    <div>Tiempo: <span id="catchTime">${catchObjectsTime}s</span></div>
+    <button id="catchEndEarly" class="btn ghost">Terminar juego</button>
+  `;
+  screen.appendChild(infoDiv);
+
   document.getElementById('catchEndEarly').onclick = endCatchObjects;
 
   catchObjectsScore = 0;
   catchObjectsLives = 3;
   catchObjectsTime = 30;
-
   startCatchTimer();
   spawnObjectLoop();
 }
 
 function startCatchTimer(){
-  clearInterval(catchTimerInterval);
-  catchTimerInterval = setInterval(()=>{
+  clearInterval(catchObjectsInterval);
+  catchObjectsInterval = setInterval(()=>{
     catchObjectsTime--;
     document.getElementById('catchTime').textContent = `${catchObjectsTime}s`;
-    if(catchObjectsTime <= 0){
-      clearInterval(catchTimerInterval);
-      finalizeCatchObjects();
-    }
+    if(catchObjectsTime<=0){ endCatchObjects(); }
   },1000);
 }
 
@@ -373,120 +413,96 @@ function spawnObjectLoop(){
   const area = document.getElementById('catchArea');
   if(!area) return;
 
-  clearInterval(catchSpawnInterval);
-  catchSpawnInterval = setInterval(()=>{
-    const isTarget = Math.random() < 0.5;
-    const emoji = isTarget ? currentCategory.target : pickRandom(currentCategory.distractors,1)[0];
-    const obj = document.createElement('div');
-    obj.textContent = emoji;
-    obj.style.position = 'absolute';
-    obj.style.fontSize = '28px';
-    obj.style.cursor = 'pointer';
-    obj.style.top = Math.random()*250 + 'px';
-    obj.style.left = Math.random()*90 + '%';
-    obj.style.transition = 'transform 0.5s linear';
-    obj.onclick = ()=>{
-      if(emoji === currentCategory.target){
+  const spawn = () => {
+    const objList = shuffle([currentCategory.target,...currentCategory.distractors]);
+    const obj = objList[Math.floor(Math.random()*objList.length)];
+
+    const el = document.createElement('div');
+    el.textContent = obj;
+    el.style.position='absolute';
+    el.style.left = Math.random()*80 + '%';
+    el.style.top = '0px';
+    el.style.fontSize='2rem';
+    el.style.cursor='pointer';
+    el.style.transition='top 2s linear';
+    area.appendChild(el);
+
+    el.onclick = ()=>{
+      if(obj === currentCategory.target){
         catchObjectsScore += 10;
         sounds.ding.play();
       } else {
-        catchObjectsScore -= 5;
         catchObjectsLives--;
         sounds.pop.play();
-        document.getElementById('catchLives').textContent = catchObjectsLives;
-        if(catchObjectsLives <= 0) return finalizeCatchObjects();
       }
       document.getElementById('catchScore').textContent = catchObjectsScore;
-      obj.remove();
+      document.getElementById('catchLives').textContent = catchObjectsLives;
+      el.remove();
+      if(catchObjectsLives <= 0) endCatchObjects();
     };
-    area.appendChild(obj);
-    setTimeout(()=>{ obj.style.transform = 'translateY(260px)'; },10);
-    setTimeout(()=>{ if(obj.parentElement) obj.remove(); },2500);
-  }, Math.max(400, 1200 - (catchObjectsScore*5)));
-}
 
-function endCatchObjects(){
-  clearInterval(catchSpawnInterval);
-  clearInterval(catchTimerInterval);
-  finalizeCatchObjects();
-}
+    // animación caída
+    setTimeout(()=>el.style.top = '250px',50);
+    setTimeout(()=>{ if(area.contains(el)) area.removeChild(el); },2200);
+  };
 
-function finalizeCatchObjects(){
-  clearInterval(catchSpawnInterval);
-  clearInterval(catchTimerInterval);
-  alert(`Juego terminado! Obtuviste ${catchObjectsScore} puntos.`);
-  saveScoreToDB('coop', catchObjectsScore);
-  if(catchObjectsScore>=200) awardMedal('🎯 Maestro Cazador');
-  else if(catchObjectsScore>=100) awardMedal('🏹 Cazador Hábil');
-  goHome();
-}
-
-// ---------- JUEGO 4: REACT ----------
-function initReact(){
-  document.getElementById('reactScreen').style.display='block';
-  reactGrid = document.getElementById('reactGrid');
-  reactRound = 0;
-  reactTimeLeft = 30;
-  startReactRound();
-
-  clearInterval(reactInterval);
-  reactInterval = setInterval(()=>{
-    reactTimeLeft--;
-    document.getElementById('timeDisplay').textContent = `⏱ ${reactTimeLeft}s`;
-    if(reactTimeLeft<=0){
-      clearInterval(reactInterval);
-      endGame('react');
-    }
+  spawn();
+  const spawnInterval = setInterval(()=>{
+    if(catchObjectsTime<=0 || catchObjectsLives<=0){ clearInterval(spawnInterval); return; }
+    spawn();
   },1000);
 }
 
-function startReactRound(){
-  reactGrid.innerHTML='';
-  reactRound++;
-  const target = reactTargets[Math.floor(Math.random()*reactTargets.length)];
-  document.getElementById('reactTarget').textContent = `Presiona rápido: ${target}`;
-
-  const buttons = shuffle([...reactTargets]);
-  if(!buttons.includes(target)) buttons[0] = target;
-  buttons.forEach(btn=>{
-    const b = document.createElement('button');
-    b.className='react-btn';
-    b.textContent = btn;
-    b.onclick = ()=>{
-      if(btn === target){
-        score += 15; sounds.ding.play();
-      } else {
-        score -= 5; sounds.pop.play();
-        lives--;
-        document.getElementById('livesDisplay').textContent = 'Vidas: ' + lives;
-        if(lives<=0) return endGame('react');
-      }
-      document.getElementById('scoreDisplay').textContent = 'Puntos: ' + score;
-      startReactRound();
-    };
-    reactGrid.appendChild(b);
-  });
+function endCatchObjects(){
+  clearInterval(catchObjectsInterval);
+  awardMedal(catchObjectsScore >= 200 ? "🎯 Maestro Cazador" : catchObjectsScore >= 100 ? "🏹 Cazador Hábil" : "");
+  endGame('coop');
 }
 
-// ---------- UTIL ----------
-function shuffle(arr){ return arr.sort(()=>Math.random()-0.5); }
-function pickRandom(arr,n){ return shuffle(arr).slice(0,n); }
+// ---------- JUEGO 4: REACCIÓN ----------
+function initReact(){
+  const screen = document.getElementById('reactScreen');
+  screen.style.display='block';
+  reactTimeLeft = 30; reactScore = 0; reactRound = 0;
+  document.getElementById('reactScore').textContent='0';
+  reactInterval = setInterval(()=>{
+    reactTimeLeft--;
+    document.getElementById('reactTime').textContent = reactTimeLeft+'s';
+    if(reactTimeLeft<=0) endGame('react');
+  },1000);
+  nextReactRound();
+}
+
+function nextReactRound(){
+  const screen = document.getElementById('reactScreen');
+  screen.innerHTML = '';
+  reactRound++;
+  const target = pickRandom(reactTargets,1)[0];
+  const btn = document.createElement('button');
+  btn.textContent = target;
+  btn.className='option-btn';
+  btn.style.fontSize='3rem';
+  btn.onclick = ()=>{
+    reactScore += 10;
+    document.getElementById('reactScore').textContent = reactScore;
+    sounds.ding.play();
+    nextReactRound();
+  };
+  screen.appendChild(btn);
+}
 
 // ---------- END GAME ----------
-function endGame(game){
+function endGame(type){
   clearInterval(globalTimerInterval);
   clearInterval(reactInterval);
-  if(catchSpawnInterval) clearInterval(catchSpawnInterval);
-  if(catchTimerInterval) clearInterval(catchTimerInterval);
-  alert(`🎮 Juego terminado! Obtuviste ${score} puntos`);
-  saveScoreToDB(game, score);
-  if(score>=5000) awardMedal('🏆 Leyenda');
-  else if(score>=500) awardMedal('🥇 Prodigio');
+  gameArea.style.display='none';
+  alert(`🎉 Juego terminado!\nPuntos: ${score}`);
+  if(score>=500){ awardMedal('🥇 Prodigio'); addAchievement('Prodigio'); }
+  if(score>=5000){ awardMedal('🏆 Leyenda'); addAchievement('Leyenda'); }
+  if(playerRef) playerRef.child('score').transaction(old=>(old||0)+score);
   goHome();
 }
 
-// ---------- INIT ----------
-document.addEventListener('DOMContentLoaded', ()=>{
-  if(playerName) startSession(playerName);
-  else loginScreen.style.display='block';
-});
+// ---------- UTILS ----------
+function shuffle(a){ return a.sort(()=>0.5-Math.random()); }
+function pickRandom(arr, n){ return shuffle(arr).slice(0,n); }
