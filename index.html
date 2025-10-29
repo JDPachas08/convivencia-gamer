@@ -1,140 +1,73 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Convivencia Gamer</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Juegos de Convivencia</title>
   <link rel="stylesheet" href="style.css">
-  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&display=swap" rel="stylesheet">
 </head>
 <body>
-  <div class="topbar">
-    <div class="brand">🎮 Convivencia Gamer</div>
-    <div id="playerInfo" class="player-info" style="display:none;">
-      <span id="playerNameBadge"></span>
-      <div id="medalsBadge"></div>
+  <!-- LOGIN -->
+  <div id="loginScreen" class="screen">
+    <h2>Ingresa tu apodo</h2>
+    <input type="text" id="nickname" placeholder="Apodo">
+    <button id="enterBtn">Entrar</button>
+  </div>
+
+  <!-- MENU -->
+  <div id="menuScreen" class="screen" style="display:none;">
+    <h2>Bienvenido <span id="playerNameBadge"></span></h2>
+    <button onclick="startGame('trivia')">Trivia</button>
+    <button onclick="startGame('who')">Quién dijo eso</button>
+    <button onclick="startGame('coop')">Fútbol Cooperativo</button>
+    <button onclick="startGame('react')">Duelos de Reflejos</button>
+    <button onclick="toggleMedals()">Medallas</button>
+    <ul id="rankingList"></ul>
+  </div>
+
+  <!-- GAME AREA -->
+  <div id="gameArea" class="screen" style="display:none;">
+    <div id="playerInfo" style="display:flex;">
+      <span id="scoreDisplay">Puntos: 0</span>
+      <span id="livesDisplay"></span>
+      <span id="timeDisplay"></span>
+    </div>
+
+    <!-- TRIVIA -->
+    <div id="triviaScreen" class="screen" style="display:none;">
+      <div id="triviaContent"></div>
+    </div>
+
+    <!-- WHO -->
+    <div id="whoScreen" class="screen" style="display:none;">
+      <div id="whoPhrase"></div>
+      <div id="whoOptions"></div>
+    </div>
+
+    <!-- FOOTBALL COOP -->
+    <div id="coopScreen" class="screen" style="display:none;">
+      <div id="coopMission"></div>
+      <button id="coopComplete">Acción: PASO/DISPARO</button>
+    </div>
+
+    <!-- DUELS -->
+    <div id="reactScreen" class="screen" style="display:none;">
+      <div id="reactBest">Aún sin mejor tiempo</div>
+      <div id="reactGrid"></div>
     </div>
   </div>
 
-  <main class="container">
-    <!-- Login / Apodo -->
-    <section id="loginScreen" class="card center">
-      <h2>👋 Bienvenido</h2>
-      <p>Ingresa tu apodo para empezar</p>
-      <input id="nickname" placeholder="Ej: Andrea23" />
-      <div class="row">
-        <button class="btn primary" id="enterBtn">Entrar</button>
-      </div>
-      <small class="muted">Tu apodo se usará para ranking y logros.</small>
-    </section>
+  <!-- MEDALS PANEL -->
+  <div id="medalsPanel" style="display:none;">
+    <ul id="medalsList"></ul>
+  </div>
 
-    <!-- Menu -->
-    <section id="menuScreen" class="card games-menu" style="display:none;">
-      <h2>Elige un juego</h2>
-      <div class="grid">
-        <div class="game-card" onclick="startGame('trivia')">
-          <h3>🧠 Trivia de Convivencia</h3>
-          <p>Niveles: fácil, medio, difícil. 3 vidas por partida.</p>
-          <button class="btn">Jugar</button>
-        </div>
-        <div class="game-card" onclick="startGame('who')">
-          <h3>🎭 Quién dijo eso?</h3>
-          <p>Adivina quién dijo la frase. ¡Rápido = más puntos!</p>
-          <button class="btn">Jugar</button>
-        </div>
-        <div class="game-card" onclick="startGame('coop')">
-          <h3>🤝 Misión en Equipo</h3>
-          <p>Coopera con tus compañeros para completar misiones.</p>
-          <button class="btn">Jugar</button>
-        </div>
-        <div class="game-card" onclick="startGame('react')">
-          <h3>⚡ Batalla de Reacciones</h3>
-          <p>Presiona lo correcto lo más rápido posible.</p>
-          <button class="btn">Jugar</button>
-        </div>
-      </div>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
 
-      <div class="row mt">
-        <button class="btn ghost" onclick="toggleMedals()">Ver Medallas</button>
-      </div>
-
-      <div class="leaderboard card mt">
-        <h3>🏆 Ranking Global</h3>
-        <ul id="rankingList"></ul>
-      </div>
-    </section>
-
-    <!-- Game Areas -->
-    <section id="gameArea" style="display:none;">
-      <div class="game-header">
-        <button class="btn ghost" onclick="goHome()">← Volver</button>
-        <div class="game-status">
-          <span id="scoreDisplay">Puntos: 0</span>
-          <span id="livesDisplay"></span>
-          <span id="timeDisplay" style="margin-left:12px;"></span>
-        </div>
-      </div>
-
-      <!-- Trivia -->
-      <div id="triviaScreen" class="card screen" style="display:none;">
-        <h2 id="triviaTitle">Trivia</h2>
-        <div id="triviaContent"></div>
-      </div>
-
-      <!-- Who -->
-      <div id="whoScreen" class="card screen" style="display:none;">
-        <h2>Quién dijo eso?</h2>
-        <div id="whoPhrase" class="phrase"></div>
-        <div id="whoOptions" class="options"></div>
-      </div>
-
-      <!-- Coop -->
-      <div id="coopScreen" class="card screen" style="display:none;">
-        <h2>Misión en Equipo</h2>
-        <div id="coopMission" class="phrase"></div>
-        <div class="row">
-          <button class="btn" id="coopComplete">Completado</button>
-          <button class="btn ghost" id="coopNew">Siguiente Misión (host)</button>
-        </div>
-        <div id="coopStatus" class="muted small mt"></div>
-      </div>
-
-      <!-- Reactions -->
-      <div id="reactScreen" class="card screen" style="display:none;">
-        <h2>Batalla de Reacciones</h2>
-        <div id="reactInfo" class="muted small">Instrucción: presiona la opción correcta lo más rápido que puedas. Tienes un tiempo total por ronda.</div>
-        <div id="reactTimer" class="muted small mt"></div>
-        <div id="reactGrid" class="react-grid"></div>
-        <div id="reactBest" class="muted small mt"></div>
-      </div>
-    </section>
-
-    <!-- Medals panel (hidden by default) -->
-    <section id="medalsPanel" class="card" style="display:none; margin-top:16px;">
-      <h3>🏅 Mis Medallas</h3>
-      <ul id="medalsList"></ul>
-      <div class="muted small mt">
-        <strong>Significado:</strong>
-        <ul>
-          <li>🥇 Campeón Global — Score total ≥ 100</li>
-          <li>🥈 Jugador Constante — Score total ≥ 30</li>
-          <li>🧠 Maestro del Respeto — Trivia difícil completada</li>
-          <li>🎭 Conozco a todos — Aciertos en "Quién dijo eso"</li>
-          <li>🤝 Equipo Legendario — Completar misiones cooperativas</li>
-          <li>⚡ Reflejos Relámpago — Racha de reacciones</li>
-        </ul>
-      </div>
-    </section>
-
-  </main>
-
-  <footer class="footer">
-    <small>Diseño: Rojo / Azul Marino / Dorado • Medallas jugonas y logros</small>
-  </footer>
-
-  <!-- ✅ Firebase versión clásica (compatible con tu script.js) -->
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
   <!-- ✅ Tu script principal -->
   <script src="script.js"></script>
