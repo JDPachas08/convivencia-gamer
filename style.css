@@ -1,0 +1,40 @@
+:root{
+  --red:#D62828; --navy:#003049; --gold:#FCBF49; --white:#F8F9FA;
+  --glass: rgba(255,255,255,0.9);
+  font-family: 'Poppins', sans-serif;
+}
+*{box-sizing:border-box}
+body{margin:0;background:linear-gradient(180deg,var(--white),#fff);color:#111;min-height:100vh}
+.topbar{display:flex;justify-content:space-between;align-items:center;padding:12px 20px;background:linear-gradient(90deg,var(--navy),var(--red));color:var(--white)}
+.brand{font-weight:700;font-size:1.1rem}
+.container{max-width:1100px;margin:20px auto;padding:12px}
+.card{background:var(--glass);border-radius:14px;padding:18px;box-shadow:0 10px 30px rgba(0,0,0,0.08)}
+.center{text-align:center}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;margin-top:12px}
+.game-card{padding:18px;border-radius:12px;border:2px solid rgba(0,0,0,0.06);text-align:center}
+.game-card h3{color:var(--navy);margin-bottom:6px}
+.btn{background:var(--red);color:white;border:none;padding:10px 14px;border-radius:9px;font-weight:600;cursor:pointer}
+.btn.ghost{background:transparent;border:2px solid rgba(0,0,0,0.06);color:#222}
+.btn.primary{background:var(--navy)}
+.row{display:flex;gap:8px;justify-content:center;margin-top:12px}
+input{padding:10px;border-radius:8px;border:2px solid rgba(0,0,0,0.06);width:100%;max-width:320px}
+.leaderboard ul{list-style:none;padding:0;margin:8px 0}
+.leaderboard li{padding:6px 0;border-bottom:1px dashed rgba(0,0,0,0.04)}
+.mt{margin-top:12px}
+.game-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:12px}
+.game-status span{margin-left:12px;font-weight:700;color:var(--navy)}
+.screen{min-height:220px}
+.phrase{font-size:1.2rem;padding:12px;background:linear-gradient(90deg,rgba(255,255,255,0.6), rgba(252,191,73,0.12));border-radius:8px;margin:12px 0}
+.options{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px;margin-top:12px}
+.option-btn{padding:10px;border-radius:8px;border:2px solid rgba(0,0,0,0.06);cursor:pointer;background:#fff}
+.option-btn.correct{background:linear-gradient(90deg,#28a745,#20c997);color:#fff}
+.option-btn.incorrect{background:linear-gradient(90deg,#dc3545,#c82333);color:#fff}
+.react-grid{display:flex;flex-wrap:wrap;gap:10px}
+.react-btn{flex:1 1 30%;min-width:120px;padding:14px;border-radius:10px;font-weight:700}
+.muted{color:rgba(0,0,0,0.5)}
+.small{font-size:0.9rem}
+.player-info{display:flex;gap:8px;align-items:center}
+#playerNameBadge{background:var(--white);padding:6px 10px;border-radius:20px;color:var(--navy);font-weight:700}
+#medalsBadge span{margin-left:6px}
+.footer{text-align:center;padding:12px;color:rgba(0,0,0,0.5);margin-top:20px}
+@media(max-width:600px){.game-header{flex-direction:column;align-items:flex-start}.row{flex-direction:column}}
