@@ -34,7 +34,7 @@
       <div class="grid">
         <div class="game-card" onclick="startGame('trivia')">
           <h3>🧠 Trivia de Convivencia</h3>
-          <p>Preguntas difíciles sobre respeto y convivencia.</p>
+          <p>Niveles: fácil, medio, difícil. 3 vidas por partida.</p>
           <button class="btn">Jugar</button>
         </div>
         <div class="game-card" onclick="startGame('who')">
@@ -42,9 +42,9 @@
           <p>Adivina quién dijo la frase. ¡Rápido = más puntos!</p>
           <button class="btn">Jugar</button>
         </div>
-        <div class="game-card" onclick="startGame('hackball')">
-          <h3>⚽ Hackball Escolar</h3>
-          <p>Juega en pareja y marca goles en 2 minutos.</p>
+        <div class="game-card" onclick="startGame('coop')">
+          <h3>🤝 Misión en Equipo</h3>
+          <p>Coopera con tus compañeros para completar misiones.</p>
           <button class="btn">Jugar</button>
         </div>
         <div class="game-card" onclick="startGame('react')">
@@ -64,7 +64,7 @@
       </div>
     </section>
 
-    <!-- Game Area -->
+    <!-- Game Areas -->
     <section id="gameArea" style="display:none;">
       <div class="game-header">
         <button class="btn ghost" onclick="goHome()">← Volver</button>
@@ -77,64 +77,72 @@
 
       <!-- Trivia -->
       <div id="triviaScreen" class="card screen" style="display:none;">
-        <h2>🧠 Trivia de Convivencia</h2>
+        <h2 id="triviaTitle">Trivia</h2>
         <div id="triviaContent"></div>
       </div>
 
-      <!-- Quién dijo eso -->
+      <!-- Who -->
       <div id="whoScreen" class="card screen" style="display:none;">
-        <h2>🎭 Quién dijo eso?</h2>
+        <h2>Quién dijo eso?</h2>
         <div id="whoPhrase" class="phrase"></div>
         <div id="whoOptions" class="options"></div>
       </div>
 
-      <!-- Hackball Escolar -->
-      <div id="hackballScreen" class="card screen" style="display:none;">
-        <h2>⚽ Hackball Escolar</h2>
-        <canvas id="hackballCanvas" width="600" height="400" style="background:#fff;border:3px solid #000;border-radius:10px;"></canvas>
-        <div id="hackballScore" class="mt"></div>
-        <div id="hackballTimer" class="muted small mt"></div>
+      <!-- Coop -->
+      <div id="coopScreen" class="card screen" style="display:none;">
+        <h2>Misión en Equipo</h2>
+        <div id="coopMission" class="phrase"></div>
+        <div class="row">
+          <button class="btn" id="coopComplete">Completado</button>
+          <button class="btn ghost" id="coopNew">Siguiente Misión (host)</button>
+        </div>
+        <div id="coopStatus" class="muted small mt"></div>
       </div>
 
-      <!-- Batalla de Reacciones -->
+      <!-- Reactions -->
       <div id="reactScreen" class="card screen" style="display:none;">
-        <h2>⚡ Batalla de Reacciones</h2>
-        <div id="reactInfo" class="muted small">Instrucción: presiona la opción correcta lo más rápido que puedas. ¡Tienes tiempo limitado!</div>
+        <h2>Batalla de Reacciones</h2>
+        <div id="reactInfo" class="muted small">Instrucción: presiona la opción correcta lo más rápido que puedas. Tienes un tiempo total por ronda.</div>
         <div id="reactTimer" class="muted small mt"></div>
         <div id="reactGrid" class="react-grid"></div>
         <div id="reactBest" class="muted small mt"></div>
       </div>
     </section>
 
-    <!-- Medals -->
+    <!-- Medals panel (hidden by default) -->
     <section id="medalsPanel" class="card" style="display:none; margin-top:16px;">
       <h3>🏅 Mis Medallas</h3>
       <ul id="medalsList"></ul>
       <div class="muted small mt">
         <strong>Significado:</strong>
         <ul>
-          <li>🥇 Campeón Global — Score total ≥ 5000</li>
-          <li>🥈 Jugador Constante — Score total ≥ 300</li>
+          <li>🥇 Campeón Global — Score total ≥ 100</li>
+          <li>🥈 Jugador Constante — Score total ≥ 30</li>
           <li>🧠 Maestro del Respeto — Trivia difícil completada</li>
           <li>🎭 Conozco a todos — Aciertos en "Quién dijo eso"</li>
-          <li>⚽ Equipo Legendario — Ganar en Hackball Escolar</li>
+          <li>🤝 Equipo Legendario — Completar misiones cooperativas</li>
           <li>⚡ Reflejos Relámpago — Racha de reacciones</li>
         </ul>
       </div>
     </section>
+
   </main>
 
   <footer class="footer">
     <small>Diseño: Rojo / Azul Marino / Dorado • Medallas jugonas y logros</small>
   </footer>
 
-  <!-- Firebase -->
+  <!-- ✅ Firebase versión clásica (compatible con tu script.js) -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-  <!-- Script principal -->
+  <!-- ✅ Tu script principal -->
   <script src="script.js"></script>
 </body>
 </html>
 
+  <!-- ✅ Tu script principal -->
+  <script src="script.js"></script>
+</body>
+</html>
 
