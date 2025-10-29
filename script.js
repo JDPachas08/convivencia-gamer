@@ -28,7 +28,9 @@ const sounds = {
   ding: new Audio('assets/sounds/ding.mp3'),
   pop: new Audio('assets/sounds/pop.mp3'),
   win: new Audio('assets/sounds/win.mp3'),
-  cheer: new Audio('assets/sounds/cheer.mp3')
+  cheer: new Audio('assets/sounds/cheer.mp3'),
+  victoria: new Audio('assets/sounds/win.mp3'),
+  error: new Audio('assets/sounds/pop.mp3')
 };
 
 // ---------- ESTADO GLOBAL ----------
@@ -38,13 +40,30 @@ let score = 0;
 let lives = 3;
 let currentGame = null;
 
+// Reaction game state
+let reactTimeTotal = 30; // seconds for reaction game
+let reactTimeLeft = reactTimeTotal;
+let reactInterval = null;
+let roundStart = 0;
+let bestReaction = localStorage.getItem('bestReaction') ? Number(localStorage.getItem('bestReaction')) : null;
+let reactRound = 0;
+
 // ---------- UI ELEMENTS ----------
 const loginScreen = document.getElementById('loginScreen');
 const menuScreen = document.getElementById('menuScreen');
 const gameArea = document.getElementById('gameArea');
 const playerInfo = document.getElementById('playerInfo');
 const rankingList = document.getElementById('rankingList');
+const medalsPanel = document.getElementById('medalsPanel');
+const medalsList = document.getElementById('medalsList');
 
+// helper to hide screens
+function hideAllScreens(){
+  document.querySelectorAll('.screen').forEach(s => s.style.display = 'none');
+  document.getElementById('medalsPanel').style.display = 'none';
+}
+
+// enter button
 document.getElementById('enterBtn').addEventListener('click', () => {
   const nick = document.getElementById('nickname').value.trim();
   if(!nick) return alert('Ingresa un apodo');
@@ -76,16 +95,39 @@ function showMenu(){
   document.getElementById('playerNameBadge').textContent = playerName;
   loadGlobalRanking();
   listenPlayerUpdates();
+  renderMedalsList();
 }
 
 // Listen player updates (medals, etc)
 function listenPlayerUpdates(){
+  if(!playerRef) playerRef = db.ref('players/' + sanitizeId(playerName));
   playerRef.on('value', snap=>{
     const val = snap.val();
     if(!val) return;
     const medals = val.medals || [];
     document.getElementById('medalsBadge').innerHTML = medals.map(m => `<span>${m}</span>`).join(' ');
+    renderMedalsList();
   });
+}
+
+// render medallas panel content
+function renderMedalsList(){
+  if(!playerRef) return;
+  playerRef.once('value').then(snap=>{
+    const val = snap.val() || {};
+    const medals = val.medals || [];
+    if(medals.length === 0){
+      medalsList.innerHTML = '<li>No tienes medallas aún. ¡A jugar! 🎮</li>';
+    } else {
+      medalsList.innerHTML = medals.map(m => `<li style="font-size:1.1rem">${m}</li>`).join('');
+    }
+  });
+}
+
+// toggle medals panel
+function toggleMedals(){
+  const panel = document.getElementById('medalsPanel');
+  panel.style.display = (panel.style.display === 'none' || panel.style.display === '') ? 'block' : 'none';
 }
 
 // Go home
@@ -93,11 +135,14 @@ function goHome(){
   currentGame = null;
   score = 0;
   lives = 3;
+  reactTimeLeft = reactTimeTotal;
+  clearInterval(reactInterval);
   document.getElementById('scoreDisplay').textContent = 'Puntos: 0';
   document.getElementById('livesDisplay').textContent = '';
-  document.querySelectorAll('.screen').forEach(s=>s.style.display='none');
-  document.getElementById('gameArea').style.display='none';
-  document.getElementById('menuScreen').style.display='block';
+  document.getElementById('timeDisplay').textContent = '';
+  hideAllScreens();
+  gameArea.style.display='none';
+  menuScreen.style.display='block';
   sounds.pop.play();
 }
 
@@ -108,9 +153,10 @@ function startGame(type){
   score = 0; lives = 3;
   document.getElementById('scoreDisplay').textContent = 'Puntos: 0';
   document.getElementById('livesDisplay').textContent = 'Vidas: ' + lives;
-  document.getElementById('menuScreen').style.display='none';
-  document.getElementById('gameArea').style.display='block';
-  document.querySelectorAll('.screen').forEach(s=>s.style.display='none');
+  document.getElementById('timeDisplay').textContent = '';
+  menuScreen.style.display='none';
+  gameArea.style.display='block';
+  hideAllScreens();
   sounds.start.play();
 
   if(type==='trivia'){ initTrivia(); }
@@ -139,7 +185,16 @@ function loadGlobalRanking(){
 }
 
 // ---------- ACHIEVEMENTS / MEDALS ----------
+function awardMedalToPlayerId(playerId, name){
+  db.ref(`players/${playerId}/medals`).transaction(old=>{
+    old = old || [];
+    if(!old.includes(name)) old.push(name);
+    return old;
+  });
+}
+
 function awardMedal(name){
+  if(!playerRef) return;
   playerRef.child('medals').transaction(old=>{
     old = old || [];
     if(!old.includes(name)) old.push(name);
@@ -148,6 +203,7 @@ function awardMedal(name){
 }
 
 function addAchievement(name){
+  if(!playerRef) return;
   playerRef.child('achievements').transaction(old=>{
     old = old || [];
     if(!old.includes(name)) old.push(name);
@@ -210,127 +266,164 @@ function showTriviaQuestion(){
 }
 
 // ---------- JUEGO 2: WHO (Quién dijo eso) ----------
+const frasesBank = [
+  { frase: "Me encanta hacer peinados locos.", autor: "Andrea" },
+  { frase: "Nada me relaja más que dibujar.", autor: "Loana" },
+  { frase: "Amo tocar el ukelele y componer canciones.", autor: "Emmanuel" },
+  { frase: "Roblox todo el día, todos los días.", autor: "Nadiencka" },
+  { frase: "Siempre con energía para el básquet.", autor: "Sneijder" },
+  { frase: "Mi guitarra y mis lentes rosados son mi estilo.", autor: "Lucciana" }
+];
+
 function initWho(){
   document.getElementById('whoScreen').style.display='block';
-  showWhoRound();
+  loadWhoQuestion();
 }
 
-function showWhoRound(){
-  const idx = Math.floor(Math.random()*students.length);
-  const phrase = students[idx].phrase;
-  document.getElementById('whoPhrase').textContent = phrase;
-  const options = shuffle([...students.map(s=>s.name)]);
-  // ensure correct present
-  if(!options.includes(students[idx].name)) options[0] = students[idx].name;
+function loadWhoQuestion(){
+  const q = frasesBank[Math.floor(Math.random() * frasesBank.length)];
+  document.getElementById('whoPhrase').textContent = q.frase;
+  const authors = frasesBank.map(f => f.autor);
+  // pick 3 random wrong authors
+  const wrong = pickRandom(authors.filter(a => a !== q.autor), 3);
+  const options = shuffle([q.autor, ...wrong]);
   const optDiv = document.getElementById('whoOptions');
   optDiv.innerHTML = '';
-  options.slice(0,4).forEach(name=>{
+  options.forEach(name=>{
     const b = document.createElement('button');
     b.className='option-btn';
     b.textContent = name;
     b.onclick = ()=>{
-      if(name===students[idx].name){
-        const delta = Math.max(5, 25 - Math.floor(Math.random()*10));
+      if(name === q.autor){
+        const delta = Math.max(5, 20 - Math.floor(Math.random()*10));
         score += delta; document.getElementById('scoreDisplay').textContent='Puntos: '+score;
         sounds.ding.play();
-        // possible medal
         if(score >= 80){ awardMedal('🎭 Conozco a todos'); addAchievement('Conozco a todos'); }
       } else {
         score -= 5; sounds.pop.play();
       }
-      setTimeout(showWhoRound, 600);
+      setTimeout(loadWhoQuestion, 600);
     };
     optDiv.appendChild(b);
   });
 }
 
+// helper: pick n random items from array
+function pickRandom(arr, n){
+  const copy = arr.slice();
+  const res = [];
+  for(let i=0;i<n && copy.length>0;i++){
+    const idx = Math.floor(Math.random()*copy.length);
+    res.push(copy.splice(idx,1)[0]);
+  }
+  return res;
+}
+
 // ---------- JUEGO 3: COOP (Misión en Equipo) ----------
-/*
-  Modo cooperativo:
-  - DB node: /missions/current
-  - host (first who clicks "Nuevo") can create nueva misión.
-  - players see misión y pueden marcar "Completado".
-  - cuando un número X de players completan -> misión completada y se reparte recompensa.
-*/
 const coopMissionRef = db.ref('missions/current');
-let coopCompletedBy = {};
+const coopCompletedRef = db.ref('missions/completed');
+const coopBank = [
+  "Encuentren 3 valores que todos compartan.",
+  "Decidan en equipo quién organiza una mesa para una actividad.",
+  "Completen la frase: 'Para mejorar la convivencia, debemos...'",
+  "Elijan 3 acciones para ayudar a un compañero nuevo."
+];
 
 function initCoop(){
   document.getElementById('coopScreen').style.display='block';
   document.getElementById('coopStatus').textContent = 'Conectando a misión...';
-  // Listen mission updates
+
+  // listen current mission text
   coopMissionRef.on('value', snap=>{
     const m = snap.val();
-    if(!m || !m.text){
+    if(!m){
       document.getElementById('coopMission').textContent = 'No hay misión activa. Pide a alguien generar una.';
       document.getElementById('coopStatus').textContent = 'Sin misión';
-      coopCompletedBy = {};
       return;
     }
-    document.getElementById('coopMission').textContent = m.text;
-    coopCompletedBy = m.completedBy || {};
-    renderCoopStatus(m);
+    document.getElementById('coopMission').textContent = m;
   });
-  // Buttons
+
+  // listen completions
+  coopCompletedRef.on('value', snap=>{
+    const val = snap.val() || {};
+    const count = Object.keys(val).length;
+    document.getElementById('coopStatus').textContent = `Completado por ${count} jugador(es).`;
+    // if threshold reached and not resolved, distribute reward
+    coopMissionRef.once('value').then(msnap=>{
+      const missionText = msnap.val();
+      if(count >= 2){
+        // mark resolved to avoid repeat
+        coopMissionRef.parent.child('resolved').once('value', r=>{
+          if(!r.exists() || !r.val()){
+            // resolve it
+            coopMissionRef.parent.child('resolved').set(true);
+            // reward each completer: iterate keys
+            Object.keys(val).forEach(pid=>{
+              // increase each player's score +30 and award medal
+              db.ref(`players/${pid}/score`).transaction(old => (old||0)+30);
+              awardMedalToPlayerId(pid, '🤝 Equipo Legendario');
+            });
+            // store reward log
+            db.ref('missions/rewards').push({ mission: missionText, timestamp: Date.now(), completedBy: Object.keys(val) });
+            // local feedback
+            sounds.win.play();
+            alert('¡Misión completada! Todos los que marcaron recibieron +30 pts.');
+          }
+        });
+      }
+    });
+  });
+
+  // button handlers
   document.getElementById('coopComplete').onclick = ()=>{
-    // mark current player as completed
-    coopMissionRef.child('completedBy').child(sanitizeId(playerName)).set(true);
+    const pid = sanitizeId(playerName);
+    coopCompletedRef.child(pid).set(true);
     sounds.cheer.play();
   };
-  // only host (first to press "Nuevo") will create next (we'll allow anyone to create for simplicity)
   document.getElementById('coopNew').onclick = ()=>{
-    // generate random mission from bank
-    const bank = [
-      "Encuentren 3 valores que todos compartan.",
-      "Decidan en equipo quién organiza una mesa para una actividad.",
-      "Completen la frase: 'Para mejorar la convivencia, debemos...'",
-      "Elijan 3 acciones para ayudar a un compañero nuevo."
-    ];
-    const next = bank[Math.floor(Math.random()*bank.length)];
-    coopMissionRef.set({ text: next, createdAt: Date.now(), completedBy: {} });
+    const next = coopBank[Math.floor(Math.random()*coopBank.length)];
+    // clear previous completed map & resolved flag
+    coopMissionRef.set(next);
+    coopCompletedRef.remove();
+    coopMissionRef.parent.child('resolved').set(false);
     sounds.start.play();
   };
 }
 
-function renderCoopStatus(m){
-  const completed = m.completedBy ? Object.keys(m.completedBy).length : 0;
-  document.getElementById('coopStatus').textContent = `Completado por ${completed} jugador(es).`;
-  // When ≥2 players complete (umbral) -> reward all
-  if(completed >= 2 && !m.resolved){
-    // reward: +30 pts to each player who is present (simple design)
-    // set resolved flag to prevent double reward
-    coopMissionRef.update({ resolved: true });
-    // reward all players in DB players list: for simplicity we reward current player only and store record
-    // In real setting, iterate known players; here we update the mission rewards node
-    db.ref('missions/rewards').push({ mission: m.text, timestamp: Date.now() });
-    // local reward
-    score += 30;
-    playerRef.child('score').transaction(old => (old||0)+30);
-    awardMedal('🤝 Equipo Legendario');
-    addAchievement('Equipo Legendario');
-    document.getElementById('scoreDisplay').textContent = 'Puntos: '+score;
-    sounds.win.play();
-    setTimeout(()=> alert('¡Misión completada! Todos ganan +30 pts.'), 300);
-  }
-}
-
 // ---------- JUEGO 4: REACTIONS ----------
-let reactTargets = ["Respeto","Solidaridad","Tolerancia","Escuchar","Compartir","Paz"];
-let reactTimer = null, reactRound = 0;
+let reactTimer = null;
 
 function initReact(){
   document.getElementById('reactScreen').style.display='block';
   reactRound = 0;
+  reactTimeLeft = reactTimeTotal;
+  document.getElementById('reactBest').textContent = bestReaction ? `Mejor reacción: ${bestReaction} ms` : 'Aún sin mejor tiempo';
+  startReactCountdown();
   showReactRound();
+}
+
+function startReactCountdown(){
+  clearInterval(reactInterval);
+  reactInterval = setInterval(()=>{
+    reactTimeLeft--;
+    document.getElementById('reactTimer').textContent = `⏱ Tiempo restante: ${reactTimeLeft}s`;
+    document.getElementById('timeDisplay').textContent = `⏱ ${reactTimeLeft}s`;
+    if(reactTimeLeft <= 0){
+      clearInterval(reactInterval);
+      alert('⏰ Se terminó el tiempo en Batalla de Reacciones.');
+      if(bestReaction && bestReaction <= 300) awardMedal('⚡ Reflejos Relámpago');
+      endGame('react');
+    }
+  },1000);
 }
 
 function showReactRound(){
   reactRound++;
   const grid = document.getElementById('reactGrid');
   grid.innerHTML = '';
-  // pick correct target
+  // pick correct target and distractors
   const correct = reactTargets[Math.floor(Math.random()*reactTargets.length)];
-  // create pool with distractors
   const pool = shuffle(reactTargets).slice(0,5);
   if(!pool.includes(correct)) pool[0]=correct;
   pool.forEach(text=>{
@@ -338,24 +431,41 @@ function showReactRound(){
     b.className='react-btn';
     b.textContent = text;
     b.onclick = ()=>{
+      const reactionMs = Date.now() - roundStart;
       clearTimeout(reactTimer);
-      if(text===correct){
+      if(text === correct){
         const pts = Math.max(5, 30 - reactRound*2);
         score += pts; document.getElementById('scoreDisplay').textContent='Puntos: '+score;
         sounds.ding.play();
-        // combos: award medal for streak
-        if(reactRound>=10){ awardMedal('⚡ Reflejos Relámpago'); addAchievement('Reflejos Relámpago'); }
+        // update best reaction
+        if(!bestReaction || reactionMs < bestReaction){
+          bestReaction = reactionMs;
+          localStorage.setItem('bestReaction', bestReaction);
+          document.getElementById('reactBest').textContent = `Mejor reacción: ${bestReaction} ms`;
+        }
+        // award medal if super fast
+        if(reactionMs <= 300) {
+          awardMedal('⚡ Reflejos Relámpago');
+          addAchievement('Reflejos Relámpago');
+        }
       } else {
         score -= 5; lives--; document.getElementById('livesDisplay').textContent = 'Vidas: ' + lives;
         sounds.pop.play();
         if(lives<=0) return endGame('react');
       }
-      setTimeout(showReactRound, 400);
+      // small pause then next round
+      setTimeout(()=>{
+        roundStart = Date.now();
+        showReactRound();
+      }, 300);
     };
     grid.appendChild(b);
   });
-  // timeout to auto-advance (fail)
+  // prepare for measuring reaction
+  roundStart = Date.now();
+  // safety auto-advance if player doesn't click quickly for this round
   reactTimer = setTimeout(()=>{
+    // no click in this round, reduce life and go on
     lives--; document.getElementById('livesDisplay').textContent = 'Vidas: ' + lives;
     if(lives<=0) return endGame('react');
     showReactRound();
@@ -364,7 +474,7 @@ function showReactRound(){
 
 // ---------- END GAME ----------
 function endGame(gameType){
-  // show summary and save to DB
+  clearInterval(reactInterval);
   sounds.win.play();
   alert(`Fin de ${gameType.toUpperCase()}! Puntos obtenidos: ${score}`);
   saveScoreToDB(gameType, score);
@@ -372,7 +482,7 @@ function endGame(gameType){
   if(score >= 100) awardMedal('🥇 Campeón Global');
   if(score >= 30) awardMedal('🥈 Jugador Constante');
   // update player locally too
-  playerRef.child('score').transaction(old => (old||0) + score);
+  if(playerRef) playerRef.child('score').transaction(old => (old||0) + score);
   goHome();
 }
 
