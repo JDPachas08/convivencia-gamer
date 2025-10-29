@@ -107,11 +107,27 @@
     <small>Diseño: Rojo / Azul Marino / Dorado • Medallas jugonas y logros</small>
   </footer>
 
-  <!-- Firebase SDKs -->
-  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/11.0.1/firebase-database.js"></script>
+<!-- Firebase SDKs (usa la versión 10 o 11 según prefieras) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js"></script>
 
-  <!-- Script principal -->
-  <script src="script.js"></script>
+<!-- Tu configuración -->
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyAr2Ngp82wyZiiKMe8YCv2CpVbmxIfKPlM",
+    authDomain: "juegos-convivencia.firebaseapp.com",
+    databaseURL: "https://juegos-convivencia-default-rtdb.firebaseio.com",
+    projectId: "juegos-convivencia",
+    storageBucket: "juegos-convivencia.firebasestorage.app",
+    messagingSenderId: "1043193368759",
+    appId: "1:1043193368759:web:34dcf752836b513c66fd32"
+  };
+  // Inicializar Firebase
+  firebase.initializeApp(firebaseConfig);
+</script>
+
+<!-- Tu script principal -->
+<script src="script.js"></script>
+
 </body>
 </html>
