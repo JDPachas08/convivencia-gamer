@@ -471,50 +471,43 @@ function initCoop(){
     listEl.appendChild(li);
     feedback.textContent = `✔ "${raw}" aceptada (+${pts} pts).`;
     sounds.ding.play();
-     // rotate turn
-  currentTurn = currentTurn === 1 ? 2 : 1;
-  updateTurn();
-}
+    // rotate turn
+    currentTurn = currentTurn===1?2:1;
+    updateTurn();
+  }
 
-function startMatch() {
-  const p1input = document.getElementById('coopPlayer1');
-  const p2input = document.getElementById('coopPlayer2');
-  const p1 = p1input.value.trim() || 'Jugador 1';
-  const p2 = p2input.value.trim() || 'Jugador 2';
+  function startMatch(){
+    const p1input = document.getElementById('coopPlayer1');
+    const p2input = document.getElementById('coopPlayer2');
+    const p1 = p1input.value.trim() || 'Jugador 1';
+    const p2 = p2input.value.trim() || 'Jugador 2';
+    // show names on screen header
+    header.innerHTML = `<h2>Palabras en Equipo 🧩</h2>
+      <p class="muted small">Jugadores: <strong>${p1}</strong> &amp; <strong>${p2}</strong> — 60s</p>`;
+    // initialize game state
+    coopScore = 0;
+    letters = genLetters(7);
+    currentTurn = 1;
+    timeLeft = 60;
+    gameRunning = true;
+    document.getElementById('coopScoreDisplay')?.textContent = coopScore;
+    renderGameUI();
 
-  // show names on screen header
-  header.innerHTML = `
-    <h2>Palabras en Equipo 🧩</h2>
-    <p class="muted small">Jugadores: <strong>${p1}</strong> & <strong>${p2}</strong> — 60s</p>
-  `;
-
-  // initialize game state
-  coopScore = 0;
-  letters = genLetters(7);
-  currentTurn = 1;
-  timeLeft = 60;
-  gameRunning = true;
-
-  const scoreDisplay = document.getElementById('coopScoreDisplay');
-  if (scoreDisplay) scoreDisplay.textContent = coopScore;
-
-  renderGameUI();
-
-  // start coop timer (separate from global timer to avoid interfering)
-  clearInterval(coopTimer);
-  coopTimer = setInterval(() => {
-    timeLeft--;
-    const timeEl = document.getElementById('coopTime');
-    if (timeEl) timeEl.textContent = `⏱ ${timeLeft}s`;
-    document.getElementById('timeDisplay').textContent = `⏱ ${timeLeft}s`;
-    if (timeLeft <= 0) {
-      clearInterval(coopTimer);
-      gameRunning = false;
-      finalizeMatch();
-    }
-  }, 1000);
-}
-
+    // start coop timer (separate from global timer to avoid interfering)
+    clearInterval(coopTimer);
+    coopTimer = setInterval(()=>{
+      timeLeft--;
+      const timeEl = document.getElementById('coopTime');
+      if(timeEl) timeEl.textContent = `⏱ ${timeLeft}s`;
+      // also update main timeDisplay to sync
+      document.getElementById('timeDisplay').textContent = `⏱ ${timeLeft}s`;
+      if(timeLeft <= 0){
+        clearInterval(coopTimer);
+        gameRunning = false;
+        finalizeMatch();
+      }
+    },1000);
+  }
 
   function endEarly(){
     clearInterval(coopTimer);
@@ -611,4 +604,3 @@ document.addEventListener('DOMContentLoaded', ()=>{
   if(playerName) startSession(playerName);
   else loginScreen.style.display='block';
 });
-
