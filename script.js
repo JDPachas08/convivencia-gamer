@@ -490,8 +490,10 @@ function initCoop(){
     currentTurn = 1;
     timeLeft = 60;
     gameRunning = true;
-    document.getElementById('coopScoreDisplay')?.textContent = coopScore;
+    const scoreEl = document.getElementById('coopScoreDisplay');
+    if(scoreEl) scoreEl.textContent = coopScore;
     renderGameUI();
+
 
     // start coop timer (separate from global timer to avoid interfering)
     clearInterval(coopTimer);
