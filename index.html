@@ -42,9 +42,9 @@
           <p>Adivina quién dijo la frase. ¡Rápido = más puntos!</p>
           <button class="btn">Jugar</button>
         </div>
-        <div class="game-card" onclick="startGame('coop')">
-          <h3>🤝 Misión en Equipo</h3>
-          <p>Coopera con tus compañeros para completar misiones.</p>
+        <div class="game-card" onclick="startGame('hackball')">
+          <h3>⚽ Hackball Escolar</h3>
+          <p>Juega en pareja y marca goles en 2 minutos.</p>
           <button class="btn">Jugar</button>
         </div>
         <div class="game-card" onclick="startGame('react')">
@@ -88,14 +88,10 @@
         <div id="whoOptions" class="options"></div>
       </div>
 
-      <!-- Coop -->
+      <!-- Hackball -->
       <div id="coopScreen" class="card screen" style="display:none;">
-        <h2>Misión en Equipo</h2>
+        <h2>⚽ Hackball Escolar</h2>
         <div id="coopMission" class="phrase"></div>
-        <div class="row">
-          <button class="btn" id="coopComplete">Completado</button>
-          <button class="btn ghost" id="coopNew">Siguiente Misión (host)</button>
-        </div>
         <div id="coopStatus" class="muted small mt"></div>
       </div>
 
@@ -109,18 +105,18 @@
       </div>
     </section>
 
-    <!-- Medals panel (hidden by default) -->
+    <!-- Medals panel -->
     <section id="medalsPanel" class="card" style="display:none; margin-top:16px;">
       <h3>🏅 Mis Medallas</h3>
       <ul id="medalsList"></ul>
       <div class="muted small mt">
         <strong>Significado:</strong>
         <ul>
-          <li>🥇 Campeón Global — Score total ≥ 100</li>
-          <li>🥈 Jugador Constante — Score total ≥ 30</li>
+          <li>🥇 Campeón Global — Score total ≥ 5000</li>
+          <li>🥈 Jugador Constante — Score total ≥ 300</li>
           <li>🧠 Maestro del Respeto — Trivia difícil completada</li>
           <li>🎭 Conozco a todos — Aciertos en "Quién dijo eso"</li>
-          <li>🤝 Equipo Legendario — Completar misiones cooperativas</li>
+          <li>⚽ Equipo Legendario — Ganar en Hackball Escolar</li>
           <li>⚡ Reflejos Relámpago — Racha de reacciones</li>
         </ul>
       </div>
@@ -132,16 +128,12 @@
     <small>Diseño: Rojo / Azul Marino / Dorado • Medallas jugonas y logros</small>
   </footer>
 
-  <!-- ✅ Firebase versión clásica (compatible con tu script.js) -->
+  <!-- Firebase -->
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
   <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
 
-  <!-- ✅ Tu script principal -->
+  <!-- Script principal -->
   <script src="script.js"></script>
 </body>
 </html>
 
-  <!-- ✅ Tu script principal -->
-  <script src="script.js"></script>
-</body>
-</html>
