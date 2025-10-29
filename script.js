@@ -314,230 +314,132 @@ function loadWhoQuestion(){
   });
 }
 
-// ---------- JUEGO 3: PALABRAS EN EQUIPO (LOCAL, 60s) ----------
+// ---------- JUEGO 3: CAZA OBJETOS (LOCAL, 30s) ----------
 /*
   Reglas:
-  - Dos jugadores locales (misma PC) se turnan.
-  - Al iniciar se generan N letras (por ejemplo 7).
-  - En 60 segundos deben formar tantas palabras válidas como puedan.
-  - Cada palabra válida da puntos = longitud * 10.
-  - Se utiliza un diccionario interno pequeño para validar palabras.
+  - Aparecen objetos (emojis) en la pantalla.
+  - Solo debes hacer clic en los objetos correctos según la categoría indicada.
+  - Cada acierto suma puntos, cada error resta puntos o vida.
+  - La velocidad aumenta gradualmente.
 */
 
-const smallSpanishDict = new Set([
-  "sol","mar","casa","mesa","silla","amor","paz","luz","niño","niña","amigo","amiga",
-  "libro","agua","pan","jugar","juego","cantar","bailar","verde","rojo","azul","tierra",
-  "estrella","flor","mundo","familia","escuela","docente","estudio","comer","beber",
-  "caminar","hablar","escuchar","ayudar","compartir","reir","sonreir","sueño","viaje",
-  "perro","gato","corazon","amable","respeto","valor","trabajo","equipo","unidad",
-  "salud","tiempo","clase","orden","ayuda","cuidado","fuerza","mente","crecer"
-]);
+const catchObjectsCategories = [
+  { name: "⚽ Deportes", target: "⚽", distractors: ["🍎","🐶","🎮","🌟"] },
+  { name: "🍎 Comida", target: "🍎", distractors: ["⚽","🐱","🎯","🔥"] },
+  { name: "🐶 Animales", target: "🐶", distractors: ["🍌","⚽","🎮","🌟"] },
+  { name: "🎮 Juegos", target: "🎮", distractors: ["🍎","🐱","⚽","🌟"] }
+];
+
+let catchObjectsInterval = null;
+let catchObjectsTime = 30;
+let catchObjectsScore = 0;
+let catchObjectsLives = 3;
+let currentCategory = null;
 
 function initCoop(){
-  // show coop screen and build UI dynamically inside it
   const screen = document.getElementById('coopScreen');
-  screen.style.display = 'block';
+  screen.style.display='block';
   screen.innerHTML = ''; // clear previous content
 
-  // create UI
+  // header
   const header = document.createElement('div');
   header.className = 'center';
-  header.innerHTML = `<h2>Palabras en Equipo 🧩</h2><p class="muted small">Dos jugadores en la misma PC. 60 segundos para formar palabras válidas.</p>`;
   screen.appendChild(header);
 
-  const namesRow = document.createElement('div');
-  namesRow.className = 'row';
-  namesRow.style.marginTop = '10px';
-  namesRow.innerHTML = `
-    <input id="coopPlayer1" placeholder="Jugador 1 (opcional)" style="max-width:220px" />
-    <input id="coopPlayer2" placeholder="Jugador 2 (opcional)" style="max-width:220px" />
-    <button id="coopStartBtn" class="btn primary">Iniciar Partida</button>
+  // choose random category
+  currentCategory = pickRandom(catchObjectsCategories,1)[0];
+  header.innerHTML = `<h2>Caza Objetos 🏹</h2>
+    <p class="muted small">Categoría: <strong>${currentCategory.name}</strong></p>
   `;
-  screen.appendChild(namesRow);
 
-  const gameAreaDiv = document.createElement('div');
-  gameAreaDiv.style.width = '100%';
-  gameAreaDiv.style.marginTop = '14px';
-  screen.appendChild(gameAreaDiv);
+  // create game area
+  const areaDiv = document.createElement('div');
+  areaDiv.id = 'catchArea';
+  areaDiv.style.cssText = 'position:relative;width:100%;height:300px;border:1px solid #ccc;background:#f9f9f9;overflow:hidden;border-radius:12px;margin-top:12px;';
+  screen.appendChild(areaDiv);
 
-  // state for coop game
-  let coopScore = 0;
-  let letters = [];
-  let currentTurn = 1; // 1 or 2
-  let coopTimer = null;
-  let timeLeft = 60;
-  let gameRunning = false;
+  // info & controls
+  const infoDiv = document.createElement('div');
+  infoDiv.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-top:10px;';
+  infoDiv.innerHTML = `
+    <div>Puntos: <span id="catchScore">${catchObjectsScore}</span></div>
+    <div>Vidas: <span id="catchLives">${catchObjectsLives}</span></div>
+    <div>Tiempo: <span id="catchTime">${catchObjectsTime}s</span></div>
+    <button id="catchEndEarly" class="btn ghost">Terminar juego</button>
+  `;
+  screen.appendChild(infoDiv);
 
-  // helpers
-  function genLetters(n = 7){
-    const alphabet = "abcdefghijklmnñopqrstuvwxyz";
-    const arr = [];
-    // A slightly biased generator to include vowels more often
-    for(let i=0;i<n;i++){
-      const isVowel = Math.random() < 0.36;
-      if(isVowel){
-        const vowels = "aeiou";
-        arr.push(vowels[Math.floor(Math.random()*vowels.length)]);
-      } else {
-        arr.push(alphabet[Math.floor(Math.random()*alphabet.length)]);
-      }
-    }
-    return arr;
-  }
+  document.getElementById('catchEndEarly').onclick = endCatchObjects;
 
-  function renderGameUI(){
-    gameAreaDiv.innerHTML = `
-      <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
-        <div style="font-weight:800;color:var(--navy);">Letras:</div>
-        <div id="coopLetters" style="display:flex;gap:8px;flex-wrap:wrap"></div>
-        <div style="margin-left:auto;font-weight:800;color:var(--red)" id="coopTime">⏱ ${timeLeft}s</div>
-      </div>
-      <div style="margin-top:12px;">
-        <div style="font-weight:700">Turno: <span id="coopTurn">Jugador ${currentTurn}</span></div>
-        <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
-          <input id="coopWordInput" placeholder="Escribe una palabra con las letras..." style="flex:1;min-width:180px;padding:10px;border-radius:8px;border:1px solid rgba(0,0,0,0.06)" />
-          <button id="coopSubmitWord" class="btn">Enviar</button>
-          <button id="coopSkip" class="btn ghost">Pasar turno</button>
-        </div>
-        <div id="coopFeedback" class="muted small" style="margin-top:8px"></div>
-        <div style="margin-top:12px;display:flex;gap:12px;align-items:center">
-          <div style="font-weight:800">Puntos del equipo: <span id="coopScoreDisplay">${coopScore}</span></div>
-          <div style="margin-left:auto">
-            <button id="coopEndEarly" class="btn ghost">Terminar partida</button>
-          </div>
-        </div>
-        <div style="margin-top:12px" id="coopWordsListContainer">
-          <strong>Palabras aceptadas:</strong>
-          <ul id="coopWordsList" style="margin-top:8px"></ul>
-        </div>
-      </div>
-    `;
-
-    const lettersDiv = document.getElementById('coopLetters');
-    lettersDiv.innerHTML = letters.map(l=>`<div style="padding:8px 10px;border-radius:8px;background:#fff;font-weight:800;border:1px solid rgba(0,0,0,0.06)">${l.toUpperCase()}</div>`).join('');
-
-    document.getElementById('coopSubmitWord').onclick = submitWordHandler;
-    document.getElementById('coopSkip').onclick = ()=>{ currentTurn = currentTurn===1?2:1; updateTurn(); };
-    document.getElementById('coopEndEarly').onclick = endEarly;
-    updateTurn();
-  }
-
-  function updateTurn(){
-    const turnEl = document.getElementById('coopTurn');
-    if(turnEl) turnEl.textContent = `Jugador ${currentTurn}`;
-  }
-
-  function validateWordAgainstLetters(word, lettersArr){
-    // verify word uses only available letters (frequency-based)
-    word = word.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); // basic normalization
-    const pool = lettersArr.slice();
-    for(const ch of word){
-      const idx = pool.indexOf(ch);
-      if(idx === -1) return false;
-      pool.splice(idx,1);
-    }
-    return true;
-  }
-
-  function submitWordHandler(){
-    const input = document.getElementById('coopWordInput');
-    const feedback = document.getElementById('coopFeedback');
-    const listEl = document.getElementById('coopWordsList');
-
-    if(!gameRunning) { feedback.textContent = 'La partida no está en curso.'; return; }
-    const raw = input.value.trim().toLowerCase();
-    input.value = '';
-    if(!raw){ feedback.textContent = 'Escribe una palabra.'; return; }
-    // basic normalization
-    const word = raw.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    // check dict
-    if(!smallSpanishDict.has(word)){
-      feedback.textContent = `"${raw}" no está en el diccionario.`;
-      sounds.error.play();
-      return;
-    }
-    // check letters usage
-    if(!validateWordAgainstLetters(word, letters)){
-      feedback.textContent = `"${raw}" no puede formarse con las letras disponibles.`;
-      sounds.error.play();
-      return;
-    }
-    // accepted
-    const pts = Math.max(5, word.length * 10);
-    coopScore += pts;
-    document.getElementById('coopScoreDisplay').textContent = coopScore;
-    const li = document.createElement('li');
-    li.textContent = `${word} — +${pts} pts (Jugador ${currentTurn})`;
-    listEl.appendChild(li);
-    feedback.textContent = `✔ "${raw}" aceptada (+${pts} pts).`;
-    sounds.ding.play();
-    // rotate turn
-    currentTurn = currentTurn===1?2:1;
-    updateTurn();
-  }
-
-  function startMatch(){
-    const p1input = document.getElementById('coopPlayer1');
-    const p2input = document.getElementById('coopPlayer2');
-    const p1 = p1input.value.trim() || 'Jugador 1';
-    const p2 = p2input.value.trim() || 'Jugador 2';
-    // show names on screen header
-    header.innerHTML = `<h2>Palabras en Equipo 🧩</h2>
-      <p class="muted small">Jugadores: <strong>${p1}</strong> &amp; <strong>${p2}</strong> — 60s</p>`;
-    // initialize game state
-    coopScore = 0;
-    letters = genLetters(7);
-    currentTurn = 1;
-    timeLeft = 60;
-    gameRunning = true;
-    const scoreEl = document.getElementById('coopScoreDisplay');
-    if(scoreEl) scoreEl.textContent = coopScore;
-    renderGameUI();
-
-
-    // start coop timer (separate from global timer to avoid interfering)
-    clearInterval(coopTimer);
-    coopTimer = setInterval(()=>{
-      timeLeft--;
-      const timeEl = document.getElementById('coopTime');
-      if(timeEl) timeEl.textContent = `⏱ ${timeLeft}s`;
-      // also update main timeDisplay to sync
-      document.getElementById('timeDisplay').textContent = `⏱ ${timeLeft}s`;
-      if(timeLeft <= 0){
-        clearInterval(coopTimer);
-        gameRunning = false;
-        finalizeMatch();
-      }
-    },1000);
-  }
-
-  function endEarly(){
-    clearInterval(coopTimer);
-    gameRunning = false;
-    finalizeMatch();
-  }
-
-  function finalizeMatch(){
-    // show results and award possible medal
-    const finalMsg = `Partida terminada — Puntos del equipo: ${coopScore}`;
-    alert(finalMsg);
-    // award team medal if threshold reached
-    if(coopScore >= 100){
-      awardMedal('🤝 Equipo Legendario');
-      addAchievement('Equipo Legendario');
-    }
-    // add coopScore to player's overall score in DB (save as coop game)
-    saveScoreToDB('coop', coopScore);
-    // update displayed global score and end game flow
-    document.getElementById('scoreDisplay').textContent = 'Puntos: ' + coopScore;
-    // stop global timer as well
-    clearInterval(globalTimerInterval);
-    goHome();
-  }
-
-  // bind start button
-  document.getElementById('coopStartBtn').onclick = startMatch;
+  catchObjectsScore = 0;
+  catchObjectsLives = 3;
+  catchObjectsTime = 30;
+  spawnObjectLoop();
+  startCatchTimer();
 }
+
+function startCatchTimer(){
+  clearInterval(catchObjectsInterval);
+  catchObjectsInterval = setInterval(()=>{
+    catchObjectsTime--;
+    document.getElementById('catchTime').textContent = `${catchObjectsTime}s`;
+    if(catchObjectsTime <= 0){
+      clearInterval(catchObjectsInterval);
+      finalizeCatchObjects();
+    }
+  },1000);
+}
+
+function spawnObjectLoop(){
+  const area = document.getElementById('catchArea');
+  if(!area) return;
+  const spawn = ()=>{
+    const isTarget = Math.random() < 0.5; // 50% probabilidad
+    const emoji = isTarget ? currentCategory.target : pickRandom(currentCategory.distractors,1)[0];
+    const obj = document.createElement('div');
+    obj.textContent = emoji;
+    obj.style.position = 'absolute';
+    obj.style.fontSize = '28px';
+    obj.style.cursor = 'pointer';
+    obj.style.top = Math.random()*250 + 'px';
+    obj.style.left = Math.random()*90 + '%';
+    obj.style.transition = 'transform 0.5s linear';
+    obj.onclick = ()=>{
+      if(emoji === currentCategory.target){
+        catchObjectsScore += 10;
+        sounds.ding.play();
+      } else {
+        catchObjectsScore -= 5;
+        catchObjectsLives--;
+        sounds.pop.play();
+        document.getElementById('catchLives').textContent = catchObjectsLives;
+        if(catchObjectsLives <= 0) return finalizeCatchObjects();
+      }
+      document.getElementById('catchScore').textContent = catchObjectsScore;
+      obj.remove();
+    };
+    area.appendChild(obj);
+    setTimeout(()=>{ obj.style.transform = 'translateY(260px)'; },10);
+    setTimeout(()=>{ if(obj.parentElement) obj.remove(); },2500);
+  };
+  const speed = Math.max(400, 1200 - (catchObjectsScore*5));
+  catchObjectsInterval = setInterval(spawn, speed);
+}
+
+function endCatchObjects(){
+  clearInterval(catchObjectsInterval);
+  finalizeCatchObjects();
+}
+
+function finalizeCatchObjects(){
+  clearInterval(catchObjectsInterval);
+  alert(`Juego terminado! Obtuviste ${catchObjectsScore} puntos.`);
+  saveScoreToDB('coop', catchObjectsScore);
+  if(catchObjectsScore>=200) awardMedal('🎯 Maestro Cazador');
+  else if(catchObjectsScore>=100) awardMedal('🏹 Cazador Hábil');
+  goHome();
+}
+
 
 // ---------- JUEGO 4: REACT (GOLPE RÁPIDO CON OBJETIVO VISIBLE) ----------
 function initReact(){
